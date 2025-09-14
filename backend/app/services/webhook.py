@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.exceptions import ValidationError, NotFoundError
 from app.services.activity import ActivityService
 from app.services.presence_manager import PresenceManager
+from app.services.deployment import DeploymentService
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ class WebhookService:
         self.db = db
         self.activity_service = ActivityService(db)
         self.presence_manager = PresenceManager()
+        self.deployment_service = DeploymentService(db)
     
     async def process_webhook(
         self,
@@ -419,15 +421,40 @@ class WebhookService:
         # Trigger deployment if auto-deploy is enabled
         deployment_config = repository.deployment_config or {}
         if deployment_config.get("auto_deploy", True):
-            # TODO: Trigger deployment pipeline
-            logger.info(f"Triggering deployment for repository {repository.id}")
-            
-            return {
-                "status": "processed",
-                "action": "deployment_triggered",
-                "commits": len(commits),
-                "branch": branch
-            }
+            try:
+                deployment = await self.deployment_service.trigger_deployment_from_webhook(
+                    repository_id=str(repository.id),
+                    commit_sha=event.commit_sha,
+                    branch=branch,
+                    pusher_info=pusher
+                )
+                
+                if deployment:
+                    logger.info(f"Triggered deployment {deployment.id} for repository {repository.id}")
+                    return {
+                        "status": "processed",
+                        "action": "deployment_triggered",
+                        "deployment_id": str(deployment.id),
+                        "commits": len(commits),
+                        "branch": branch
+                    }
+                else:
+                    return {
+                        "status": "processed",
+                        "action": "deployment_skipped",
+                        "reason": "auto_deploy_disabled_or_branch_not_tracked",
+                        "commits": len(commits),
+                        "branch": branch
+                    }
+            except Exception as e:
+                logger.error(f"Failed to trigger deployment: {e}")
+                return {
+                    "status": "processed",
+                    "action": "deployment_failed",
+                    "error": str(e),
+                    "commits": len(commits),
+                    "branch": branch
+                }
         
         return {
             "status": "processed",

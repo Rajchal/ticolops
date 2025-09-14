@@ -9,6 +9,7 @@ from .presence import router as presence_router
 from .collaboration import router as collaboration_router
 from .repository import router as repository_router
 from .webhooks import router as webhooks_router
+from .deployment import router as deployment_router
 # Temporarily commented out until project schemas are properly set up
 # from .projects import router as projects_router
 # from .project_files import router as project_files_router
@@ -25,6 +26,7 @@ api_router.include_router(presence_router, prefix="", tags=["presence"])
 api_router.include_router(collaboration_router, prefix="", tags=["collaboration"])
 api_router.include_router(repository_router, prefix="", tags=["repository"])
 api_router.include_router(webhooks_router, prefix="", tags=["webhooks"])
+api_router.include_router(deployment_router, prefix="", tags=["deployment"])
 # api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
 # api_router.include_router(project_files_router, prefix="", tags=["project-files"])
 # api_router.include_router(workspace_router, prefix="", tags=["workspace"])

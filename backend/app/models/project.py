@@ -56,6 +56,8 @@ class Project(Base):
     activities = relationship("Activity", back_populates="project", cascade="all, delete-orphan")
     presence_records = relationship("UserPresence", back_populates="project", cascade="all, delete-orphan")
     activity_summaries = relationship("ActivitySummary", back_populates="project", cascade="all, delete-orphan")
+    deployments = relationship("Deployment", back_populates="project", cascade="all, delete-orphan")
+    deployment_environments = relationship("DeploymentEnvironment", back_populates="project", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Project(id={self.id}, name={self.name}, owner_id={self.owner_id})>"
