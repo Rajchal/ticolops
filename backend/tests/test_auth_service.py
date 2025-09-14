@@ -218,6 +218,141 @@ class TestAuthService:
             assert exc_info.value.status_code == 401
             assert "User not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
+    async def test_refresh_token_success(self, auth_service, mock_db, sample_db_user):
+        """Test successful token refresh."""
+        from app.core.security import create_refresh_token
+        
+        # Create a valid refresh token
+        refresh_token = create_refresh_token(data={"sub": str(sample_db_user.id), "email": sample_db_user.email})
+        
+        # Mock the _get_user_by_id method to return user
+        with patch.object(auth_service, '_get_user_by_id', return_value=sample_db_user):
+            # Call refresh_token
+            result = await auth_service.refresh_token(refresh_token)
+            
+            # Verify result
+            assert result.access_token is not None
+            assert result.refresh_token is not None
+            assert result.user.email == "test@example.com"
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_invalid(self, auth_service, mock_db):
+        """Test refresh with invalid token."""
+        invalid_token = "invalid.refresh.token"
+        
+        # Call refresh_token and expect exception
+        with pytest.raises(HTTPException) as exc_info:
+            await auth_service.refresh_token(invalid_token)
+        
+        assert exc_info.value.status_code == 401
+        assert "Invalid refresh token" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_request_password_reset(self, auth_service, mock_db, sample_db_user):
+        """Test password reset request."""
+        # Mock the _get_user_by_email method to return user
+        with patch.object(auth_service, '_get_user_by_email', return_value=sample_db_user):
+            # Call request_password_reset
+            result = await auth_service.request_password_reset("test@example.com")
+            
+            # Verify result (should always return success)
+            assert "password reset link has been sent" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_request_password_reset_nonexistent_email(self, auth_service, mock_db):
+        """Test password reset request for non-existent email."""
+        # Mock the _get_user_by_email method to return None
+        with patch.object(auth_service, '_get_user_by_email', return_value=None):
+            # Call request_password_reset
+            result = await auth_service.request_password_reset("nonexistent@example.com")
+            
+            # Verify result (should still return success for security)
+            assert "password reset link has been sent" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_reset_password_success(self, auth_service, mock_db, sample_db_user):
+        """Test successful password reset."""
+        from app.core.security import create_password_reset_token
+        
+        # Create a valid reset token
+        reset_token = create_password_reset_token("test@example.com")
+        
+        # Mock the _get_user_by_email method to return user
+        with patch.object(auth_service, '_get_user_by_email', return_value=sample_db_user):
+            # Mock database operations
+            mock_db.commit = AsyncMock()
+            
+            # Call reset_password
+            result = await auth_service.reset_password(reset_token, "newpassword123")
+            
+            # Verify result
+            assert "Password has been reset successfully" in result["message"]
+            mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reset_password_invalid_token(self, auth_service, mock_db):
+        """Test password reset with invalid token."""
+        invalid_token = "invalid.reset.token"
+        
+        # Call reset_password and expect exception
+        with pytest.raises(HTTPException) as exc_info:
+            await auth_service.reset_password(invalid_token, "newpassword123")
+        
+        assert exc_info.value.status_code == 400
+        assert "Invalid or expired reset token" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_change_password_success(self, auth_service, mock_db, sample_db_user):
+        """Test successful password change."""
+        # Mock the _get_user_by_id method to return user
+        with patch.object(auth_service, '_get_user_by_id', return_value=sample_db_user):
+            # Mock database operations
+            mock_db.commit = AsyncMock()
+            
+            # Call change_password
+            result = await auth_service.change_password(
+                str(sample_db_user.id), 
+                "securepassword123", 
+                "newpassword123"
+            )
+            
+            # Verify result
+            assert "Password has been changed successfully" in result["message"]
+            mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_change_password_wrong_current(self, auth_service, mock_db, sample_db_user):
+        """Test password change with wrong current password."""
+        # Mock the _get_user_by_id method to return user
+        with patch.object(auth_service, '_get_user_by_id', return_value=sample_db_user):
+            # Call change_password and expect exception
+            with pytest.raises(HTTPException) as exc_info:
+                await auth_service.change_password(
+                    str(sample_db_user.id), 
+                    "wrongpassword", 
+                    "newpassword123"
+                )
+            
+            assert exc_info.value.status_code == 400
+            assert "Current password is incorrect" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_logout_success(self, auth_service, mock_db, sample_db_user):
+        """Test successful logout."""
+        # Mock the _get_user_by_id method to return user
+        with patch.object(auth_service, '_get_user_by_id', return_value=sample_db_user):
+            # Mock database operations
+            mock_db.commit = AsyncMock()
+            
+            # Call logout
+            result = await auth_service.logout(str(sample_db_user.id))
+            
+            # Verify result
+            assert "Successfully logged out" in result["message"]
+            assert sample_db_user.status == UserStatusEnum.OFFLINE
+            mock_db.commit.assert_called_once()
+
 
 class TestSecurityUtilities:
     """Test security utility functions."""
@@ -259,3 +394,44 @@ class TestSecurityUtilities:
         # Verify invalid token
         invalid_payload = verify_token("invalid.token.here")
         assert invalid_payload is None
+
+    def test_refresh_token_creation_and_verification(self):
+        """Test refresh token creation and verification."""
+        from app.core.security import create_refresh_token, verify_refresh_token
+        
+        # Create refresh token
+        data = {"sub": "user123", "email": "test@example.com"}
+        token = create_refresh_token(data)
+        
+        assert token is not None
+        assert isinstance(token, str)
+        
+        # Verify refresh token
+        payload = verify_refresh_token(token)
+        assert payload is not None
+        assert payload["sub"] == "user123"
+        assert payload["email"] == "test@example.com"
+        assert payload["type"] == "refresh"
+        
+        # Verify invalid refresh token
+        invalid_payload = verify_refresh_token("invalid.token.here")
+        assert invalid_payload is None
+
+    def test_password_reset_token_creation_and_verification(self):
+        """Test password reset token creation and verification."""
+        from app.core.security import create_password_reset_token, verify_password_reset_token
+        
+        # Create password reset token
+        email = "test@example.com"
+        token = create_password_reset_token(email)
+        
+        assert token is not None
+        assert isinstance(token, str)
+        
+        # Verify password reset token
+        verified_email = verify_password_reset_token(token)
+        assert verified_email == email
+        
+        # Verify invalid reset token
+        invalid_email = verify_password_reset_token("invalid.token.here")
+        assert invalid_email is None

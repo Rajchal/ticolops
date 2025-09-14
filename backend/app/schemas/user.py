@@ -84,6 +84,7 @@ class UserRegistration(UserCreate):
 class AuthResult(BaseModel):
     """Schema for authentication results."""
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int
     user: User
@@ -107,3 +108,19 @@ class ActivityStatus(BaseModel):
     last_activity: datetime
     minutes_since_activity: int
     is_active: bool
+
+
+class PasswordResetRequest(BaseModel):
+    """Schema for password reset requests."""
+    email: EmailStr
+
+
+class PasswordReset(BaseModel):
+    """Schema for password reset with token."""
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema for refresh token requests."""
+    refresh_token: str

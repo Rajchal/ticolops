@@ -10,7 +10,11 @@ from fastapi import HTTPException, status
 
 from app.models.user import User, UserRoleEnum, UserStatusEnum
 from app.schemas.user import UserCreate, UserLogin, AuthResult, User as UserSchema
-from app.core.security import get_password_hash, verify_password, create_access_token, verify_token
+from app.core.security import (
+    get_password_hash, verify_password, create_access_token, verify_token,
+    create_refresh_token, verify_refresh_token, create_password_reset_token,
+    verify_password_reset_token
+)
 from app.core.config import settings
 
 
@@ -62,16 +66,17 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(db_user)
         
-        # Create access token
-        access_token = create_access_token(
-            data={"sub": str(db_user.id), "email": db_user.email}
-        )
+        # Create access and refresh tokens
+        token_data = {"sub": str(db_user.id), "email": db_user.email}
+        access_token = create_access_token(data=token_data)
+        refresh_token = create_refresh_token(data=token_data)
         
         # Convert to response schema
         user_schema = await self._user_to_schema(db_user)
         
         return AuthResult(
             access_token=access_token,
+            refresh_token=refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=user_schema
         )
@@ -110,16 +115,17 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
         
-        # Create access token
-        access_token = create_access_token(
-            data={"sub": str(user.id), "email": user.email}
-        )
+        # Create access and refresh tokens
+        token_data = {"sub": str(user.id), "email": user.email}
+        access_token = create_access_token(data=token_data)
+        refresh_token = create_refresh_token(data=token_data)
         
         # Convert to response schema
         user_schema = await self._user_to_schema(user)
         
         return AuthResult(
             access_token=access_token,
+            refresh_token=refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=user_schema
         )
@@ -177,9 +183,8 @@ class AuthService:
         Raises:
             HTTPException: If refresh token is invalid
         """
-        # For now, we'll implement this as a simple token refresh
-        # In a full implementation, you'd want to store refresh tokens
-        payload = verify_token(refresh_token)
+        # Verify refresh token
+        payload = verify_refresh_token(refresh_token)
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -194,15 +199,16 @@ class AuthService:
                 detail="User not found"
             )
         
-        # Create new access token
-        access_token = create_access_token(
-            data={"sub": str(user.id), "email": user.email}
-        )
+        # Create new access and refresh tokens
+        token_data = {"sub": str(user.id), "email": user.email}
+        new_access_token = create_access_token(data=token_data)
+        new_refresh_token = create_refresh_token(data=token_data)
         
         user_schema = await self._user_to_schema(user)
         
         return AuthResult(
-            access_token=access_token,
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=user_schema
         )
@@ -235,3 +241,116 @@ class AuthService:
             created_at=user.created_at,
             updated_at=user.updated_at
         )
+
+    async def request_password_reset(self, email: str) -> dict:
+        """
+        Request password reset for user.
+        
+        Args:
+            email: User email address
+            
+        Returns:
+            Success message (always returns success for security)
+        """
+        # Always return success to prevent email enumeration
+        # In a real implementation, you'd send an email if user exists
+        user = await self._get_user_by_email(email)
+        if user:
+            # Generate password reset token
+            reset_token = create_password_reset_token(email)
+            # TODO: Send email with reset token
+            # For now, we'll just log it (remove in production)
+            print(f"Password reset token for {email}: {reset_token}")
+        
+        return {"message": "If the email exists, a password reset link has been sent"}
+
+    async def reset_password(self, token: str, new_password: str) -> dict:
+        """
+        Reset user password using reset token.
+        
+        Args:
+            token: Password reset token
+            new_password: New password
+            
+        Returns:
+            Success message
+            
+        Raises:
+            HTTPException: If token is invalid or expired
+        """
+        # Verify reset token
+        email = verify_password_reset_token(token)
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+        
+        # Get user by email
+        user = await self._get_user_by_email(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update password
+        user.hashed_password = get_password_hash(new_password)
+        user.updated_at = datetime.utcnow()
+        await self.db.commit()
+        
+        return {"message": "Password has been reset successfully"}
+
+    async def change_password(self, user_id: str, current_password: str, new_password: str) -> dict:
+        """
+        Change user password (requires current password).
+        
+        Args:
+            user_id: User ID
+            current_password: Current password for verification
+            new_password: New password
+            
+        Returns:
+            Success message
+            
+        Raises:
+            HTTPException: If current password is incorrect
+        """
+        user = await self._get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Verify current password
+        if not verify_password(current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+        
+        # Update password
+        user.hashed_password = get_password_hash(new_password)
+        user.updated_at = datetime.utcnow()
+        await self.db.commit()
+        
+        return {"message": "Password has been changed successfully"}
+
+    async def logout(self, user_id: str) -> dict:
+        """
+        Logout user (update status to offline).
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Success message
+        """
+        user = await self._get_user_by_id(user_id)
+        if user:
+            user.status = UserStatusEnum.OFFLINE
+            user.last_activity = datetime.utcnow()
+            await self.db.commit()
+        
+        return {"message": "Successfully logged out"}

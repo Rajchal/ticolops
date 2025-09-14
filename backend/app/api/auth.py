@@ -6,7 +6,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 
-from app.schemas.user import UserCreate, UserLogin, AuthResult, User
+from app.schemas.user import (
+    UserCreate, UserLogin, AuthResult, User, PasswordChange,
+    PasswordResetRequest, PasswordReset, RefreshTokenRequest
+)
 from app.services.auth import AuthService
 from app.core.deps import get_auth_service, get_current_user
 
@@ -91,14 +94,14 @@ async def get_current_user_info(
 
 @router.post("/refresh", response_model=AuthResult)
 async def refresh_access_token(
-    refresh_token: str,
+    request: RefreshTokenRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ) -> AuthResult:
     """
     Refresh access token using refresh token.
     
     Args:
-        refresh_token: JWT refresh token
+        request: Refresh token request data
         auth_service: Authentication service instance
         
     Returns:
@@ -108,7 +111,7 @@ async def refresh_access_token(
         HTTPException: If refresh token is invalid
     """
     try:
-        return await auth_service.refresh_token(refresh_token)
+        return await auth_service.refresh_token(request.refresh_token)
     except HTTPException:
         raise
     except Exception as e:
@@ -120,23 +123,26 @@ async def refresh_access_token(
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ) -> dict:
     """
-    Logout current user (client should discard token).
+    Logout current user and update status to offline.
     
     Args:
         current_user: Current authenticated user
+        auth_service: Authentication service instance
         
     Returns:
         Success message
-        
-    Note:
-        In a stateless JWT implementation, logout is handled client-side
-        by discarding the token. For enhanced security, you could implement
-        a token blacklist or use shorter token expiration times.
     """
-    return {"message": "Successfully logged out"}
+    try:
+        return await auth_service.logout(current_user.id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Logout failed"
+        )
 
 
 @router.get("/validate", response_model=User)
@@ -153,3 +159,91 @@ async def validate_token(
         Current user data if token is valid
     """
     return current_user
+
+
+@router.post("/password/reset-request", status_code=status.HTTP_200_OK)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+) -> dict:
+    """
+    Request password reset for user email.
+    
+    Args:
+        request: Password reset request with email
+        auth_service: Authentication service instance
+        
+    Returns:
+        Success message (always returns success for security)
+    """
+    try:
+        return await auth_service.request_password_reset(request.email)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset request failed"
+        )
+
+
+@router.post("/password/reset", status_code=status.HTTP_200_OK)
+async def reset_password(
+    request: PasswordReset,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+) -> dict:
+    """
+    Reset password using reset token.
+    
+    Args:
+        request: Password reset data with token and new password
+        auth_service: Authentication service instance
+        
+    Returns:
+        Success message
+        
+    Raises:
+        HTTPException: If token is invalid or expired
+    """
+    try:
+        return await auth_service.reset_password(request.token, request.new_password)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset failed"
+        )
+
+
+@router.post("/password/change", status_code=status.HTTP_200_OK)
+async def change_password(
+    request: PasswordChange,
+    current_user: Annotated[User, Depends(get_current_user)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+) -> dict:
+    """
+    Change user password (requires current password).
+    
+    Args:
+        request: Password change request with current and new passwords
+        current_user: Current authenticated user
+        auth_service: Authentication service instance
+        
+    Returns:
+        Success message
+        
+    Raises:
+        HTTPException: If current password is incorrect
+    """
+    try:
+        return await auth_service.change_password(
+            current_user.id, 
+            request.current_password, 
+            request.new_password
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password change failed"
+        )

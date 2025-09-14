@@ -92,7 +92,7 @@ def create_refresh_token(data: dict) -> str:
         Encoded JWT refresh token string
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=7)  # Refresh tokens last 7 days
+    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -113,5 +113,44 @@ def verify_refresh_token(token: str) -> Optional[dict]:
         if payload.get("type") != "refresh":
             return None
         return payload
+    except JWTError:
+        return None
+
+
+def create_password_reset_token(email: str) -> str:
+    """
+    Create a JWT token for password reset.
+    
+    Args:
+        email: User email address
+        
+    Returns:
+        Encoded JWT token for password reset
+    """
+    expire = datetime.utcnow() + timedelta(hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
+    to_encode = {
+        "sub": email,
+        "exp": expire,
+        "type": "password_reset"
+    }
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """
+    Verify password reset token and return email.
+    
+    Args:
+        token: Password reset token
+        
+    Returns:
+        Email address if token is valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "password_reset":
+            return None
+        return payload.get("sub")
     except JWTError:
         return None
