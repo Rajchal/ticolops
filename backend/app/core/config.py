@@ -3,7 +3,7 @@ Application configuration management using Pydantic Settings.
 """
 
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     
     # CORS
     ALLOWED_HOSTS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    
+    # Webhook Configuration
+    WEBHOOK_SECRET: str = ""  # General webhook secret
+    GITHUB_WEBHOOK_SECRET: str = ""  # GitHub-specific webhook secret
+    GITLAB_WEBHOOK_SECRET: str = ""  # GitLab-specific webhook secret
+    BASE_URL: str = "http://localhost:8000"
+    WEBHOOK_TIMEOUT_SECONDS: int = 30
     
     # Logging
     LOG_LEVEL: str = "INFO"

@@ -1,5 +1,6 @@
 """API endpoints for repository management and Git provider integration."""
 
+import logging
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.schemas.repository import (
 )
 from app.core.exceptions import NotFoundError, ValidationError, ExternalServiceError
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -374,3 +376,85 @@ def _parse_git_provider_from_url(url: str) -> Optional[GitProvider]:
         return GitProvider.BITBUCKET
     
     return None
+
+
+@router.post("/repositories/{repository_id}/webhook")
+async def manage_repository_webhook(
+    repository_id: str,
+    webhook_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manage webhook for a repository (create or delete).
+    
+    Args:
+        repository_id: Repository ID
+        webhook_data: Webhook management data including action and access_token
+        
+    Returns:
+        Webhook management result
+    """
+    try:
+        repository_service = RepositoryService(db)
+        
+        action = webhook_data.get("action", "create")
+        access_token = webhook_data.get("access_token")
+        
+        if not access_token:
+            raise HTTPException(status_code=400, detail="access_token is required")
+        
+        if action not in ["create", "delete"]:
+            raise HTTPException(status_code=400, detail="action must be 'create' or 'delete'")
+        
+        result = await repository_service.manage_webhook(
+            repository_id=repository_id,
+            user_id=str(current_user.id),
+            access_token=access_token,
+            action=action
+        )
+        
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        logger.error(f"Error managing webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/repositories/{repository_id}/webhook/status")
+async def get_repository_webhook_status(
+    repository_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get webhook status for a repository.
+    
+    Args:
+        repository_id: Repository ID
+        
+    Returns:
+        Webhook status information
+    """
+    try:
+        repository_service = RepositoryService(db)
+        
+        status = await repository_service.get_webhook_status(
+            repository_id=repository_id,
+            user_id=str(current_user.id)
+        )
+        
+        return status
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    except Exception as e:
+        logger.error(f"Error retrieving webhook status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

@@ -372,7 +372,7 @@ lass RepositoryService:
                 raise ValidationError(f"Cannot access repository: {str(e)}")
             
             # Create webhook for the repository
-            webhook_url = f"{settings.BASE_URL}/api/webhooks/{provider.value}"
+            webhook_url = f"{settings.BASE_URL}/webhooks/{provider.value}"
             try:
                 webhook = await git_client.create_webhook(
                     repo_info["owner"],
@@ -380,6 +380,7 @@ lass RepositoryService:
                     webhook_url
                 )
                 webhook_id = str(webhook.get("id"))
+                logger.info(f"Created webhook {webhook_id} for repository {repo_info['owner']}/{repo_info['name']}")
             except ExternalServiceError as e:
                 logger.warning(f"Failed to create webhook: {e}")
                 webhook_id = None
@@ -523,6 +524,124 @@ lass RepositoryService:
         await self.db.refresh(repository)
         
         return repository
+    
+    async def manage_webhook(
+        self,
+        repository_id: str,
+        user_id: str,
+        access_token: str,
+        action: str = "create"
+    ) -> Dict[str, Any]:
+        """
+        Manage webhook for a repository (create or delete).
+        
+        Args:
+            repository_id: Repository ID
+            user_id: User ID managing the webhook
+            access_token: Access token for Git provider
+            action: Action to perform ("create" or "delete")
+            
+        Returns:
+            Webhook management result
+        """
+        repository = await self._get_repository_with_access(repository_id, user_id)
+        repo_info = self._parse_repository_url(repository.url, repository.provider)
+        
+        async with self._get_git_client(repository.provider, access_token) as git_client:
+            if action == "create":
+                # Create new webhook
+                webhook_url = f"{settings.BASE_URL}/webhooks/{repository.provider.value}"
+                try:
+                    webhook = await git_client.create_webhook(
+                        repo_info["owner"],
+                        repo_info["name"],
+                        webhook_url
+                    )
+                    webhook_id = str(webhook.get("id"))
+                    
+                    # Update repository with webhook ID
+                    repository.webhook_id = webhook_id
+                    await self.db.commit()
+                    
+                    logger.info(f"Created webhook {webhook_id} for repository {repository_id}")
+                    return {
+                        "status": "created",
+                        "webhook_id": webhook_id,
+                        "webhook_url": webhook_url
+                    }
+                    
+                except ExternalServiceError as e:
+                    logger.error(f"Failed to create webhook: {e}")
+                    return {
+                        "status": "failed",
+                        "error": str(e)
+                    }
+            
+            elif action == "delete":
+                # Delete existing webhook
+                if not repository.webhook_id:
+                    return {
+                        "status": "no_webhook",
+                        "message": "No webhook configured for this repository"
+                    }
+                
+                try:
+                    success = await git_client.delete_webhook(
+                        repo_info["owner"],
+                        repo_info["name"],
+                        repository.webhook_id
+                    )
+                    
+                    if success:
+                        # Clear webhook ID from repository
+                        repository.webhook_id = None
+                        await self.db.commit()
+                        
+                        logger.info(f"Deleted webhook for repository {repository_id}")
+                        return {
+                            "status": "deleted",
+                            "message": "Webhook successfully deleted"
+                        }
+                    else:
+                        return {
+                            "status": "failed",
+                            "error": "Failed to delete webhook from Git provider"
+                        }
+                        
+                except ExternalServiceError as e:
+                    logger.error(f"Failed to delete webhook: {e}")
+                    return {
+                        "status": "failed",
+                        "error": str(e)
+                    }
+            
+            else:
+                raise ValidationError(f"Invalid webhook action: {action}")
+    
+    async def get_webhook_status(self, repository_id: str, user_id: str) -> Dict[str, Any]:
+        """
+        Get webhook status for a repository.
+        
+        Args:
+            repository_id: Repository ID
+            user_id: User ID requesting status
+            
+        Returns:
+            Webhook status information
+        """
+        repository = await self._get_repository_with_access(repository_id, user_id)
+        
+        webhook_configured = repository.webhook_id is not None
+        webhook_url = f"{settings.BASE_URL}/webhooks/{repository.provider.value}" if webhook_configured else None
+        
+        return {
+            "repository_id": repository_id,
+            "webhook_configured": webhook_configured,
+            "webhook_id": repository.webhook_id,
+            "webhook_url": webhook_url,
+            "provider": repository.provider.value,
+            "events": ["push", "pull_request"] if webhook_configured else []
+        }
     
     async def validate_repository_access(
         self, 
