@@ -2,11 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { RealtimeProvider } from './contexts/RealtimeContext';
 import { LoginForm } from './components/auth/LoginForm';
 import { RegisterForm } from './components/auth/RegisterForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Layout } from './components/layout/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { Activity } from './pages/Activity';
 
 const queryClient = new QueryClient();
 
@@ -33,7 +35,7 @@ const AppRoutes: React.FC = () => {
       >
         <Route index element={<Dashboard />} />
         <Route path="projects" element={<div>Projects Page</div>} />
-        <Route path="activity" element={<div>Activity Page</div>} />
+        <Route path="activity" element={<Activity />} />
         <Route path="repositories" element={<div>Repositories Page</div>} />
         <Route path="team" element={<div>Team Page</div>} />
         <Route path="notifications" element={<div>Notifications Page</div>} />
@@ -49,7 +51,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <AuthProvider>
-          <AppRoutes />
+          <RealtimeProvider>
+            <AppRoutes />
+          </RealtimeProvider>
         </AuthProvider>
       </Router>
     </QueryClientProvider>
