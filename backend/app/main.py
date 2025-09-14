@@ -12,6 +12,7 @@ from app.core.database import init_db
 from app.core.redis import init_redis
 from app.core.logging import setup_logging
 from app.api import api_router
+from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 
 
 @asynccontextmanager
@@ -21,11 +22,12 @@ async def lifespan(app: FastAPI):
     setup_logging()
     await init_db()
     await init_redis()
+    await initialize_websocket_pubsub()
     
     yield
     
     # Shutdown
-    # Add cleanup logic here if needed
+    await shutdown_websocket_pubsub()
 
 
 def create_app() -> FastAPI:
