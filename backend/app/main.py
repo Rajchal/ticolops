@@ -13,6 +13,7 @@ from app.core.redis import init_redis
 from app.core.logging import setup_logging
 from app.api import api_router
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
+from app.services.presence_manager import start_presence_manager, stop_presence_manager
 
 
 @asynccontextmanager
@@ -23,10 +24,12 @@ async def lifespan(app: FastAPI):
     await init_db()
     await init_redis()
     await initialize_websocket_pubsub()
+    await start_presence_manager()
     
     yield
     
     # Shutdown
+    await stop_presence_manager()
     await shutdown_websocket_pubsub()
 
 

@@ -12,6 +12,7 @@ from app.core.websocket import connection_manager
 from app.core.deps import get_current_user_from_token
 from app.services.activity import ActivityService, PresenceService
 from app.services.project import ProjectService
+from app.services.presence_manager import presence_manager, update_user_activity
 from app.models.user import User
 from app.schemas.activity import ActivityCreate, UserPresenceUpdate, ActivityType
 
@@ -51,7 +52,7 @@ async def websocket_endpoint(
                     await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Project access denied")
                     return
             
-            # Connect user
+            # Connect user to WebSocket
             connection_id = await connection_manager.connect(
                 websocket=websocket,
                 user_id=str(current_user.id),
@@ -60,6 +61,19 @@ async def websocket_endpoint(
                     "user_name": current_user.name,
                     "user_email": current_user.email,
                     "user_role": current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+                }
+            )
+            
+            # Register user in presence manager
+            await presence_manager.register_user_session(
+                user_id=str(current_user.id),
+                session_id=f"ws_{connection_id}",
+                project_id=project_id,
+                metadata={
+                    "connection_type": "websocket",
+                    "connection_id": connection_id,
+                    "user_name": current_user.name,
+                    "user_email": current_user.email
                 }
             )
             
@@ -114,6 +128,10 @@ async def websocket_endpoint(
         # Clean up connection
         if connection_id:
             await connection_manager.disconnect(connection_id)
+        
+        # Unregister from presence manager
+        if current_user:
+            await presence_manager.unregister_user_session(str(current_user.id))
 
 
 async def handle_websocket_message(
@@ -147,6 +165,9 @@ async def handle_websocket_message(
         
         elif message_type == "presence_update":
             await handle_presence_update(user_id, project_id, data, db)
+        
+        elif message_type == "heartbeat":
+            await handle_heartbeat(user_id, data)
         
         elif message_type == "typing_start":
             await handle_typing_event(user_id, project_id, data, True)
@@ -207,6 +228,14 @@ async def handle_activity_update(
             
             await activity_service.create_activity(user_id, activity_data)
         
+        # Update presence manager with activity
+        await update_user_activity(
+            user_id=user_id,
+            location=data.get("location"),
+            activity_type=data.get("activity_type"),
+            metadata=data.get("metadata", {})
+        )
+        
         # Broadcast activity update to project members
         if project_id:
             await connection_manager.update_user_activity(user_id, {
@@ -258,6 +287,24 @@ async def handle_presence_update(
     
     except Exception as e:
         logger.error(f"Error handling presence update: {e}")
+
+
+async def handle_heartbeat(user_id: str, data: Dict[str, Any]):
+    """Handle heartbeat message to maintain user presence."""
+    try:
+        # Send heartbeat to presence manager
+        activity_data = {}
+        if "location" in data:
+            activity_data["location"] = data["location"]
+        if "activity_type" in data:
+            activity_data["activity_type"] = data["activity_type"]
+        if "metadata" in data:
+            activity_data["metadata"] = data["metadata"]
+        
+        await presence_manager.heartbeat(user_id, activity_data if activity_data else None)
+    
+    except Exception as e:
+        logger.error(f"Error handling heartbeat: {e}")
 
 
 async def handle_typing_event(
