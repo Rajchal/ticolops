@@ -45,3 +45,8 @@ class ExternalServiceError(BaseAppException):
 class RateLimitError(BaseAppException):
     """Exception raised when rate limits are exceeded."""
     pass
+
+
+class DeploymentError(BaseAppException):
+    """Exception raised when deployment operations fail."""
+    pass

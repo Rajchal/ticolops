@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     BASE_URL: str = "http://localhost:8000"
     WEBHOOK_TIMEOUT_SECONDS: int = 30
     
+    # Hosting Platform Configuration
+    VERCEL_API_TOKEN: str = ""  # Vercel API token for deployments
+    NETLIFY_API_TOKEN: str = ""  # Netlify API token for deployments
+    RAILWAY_API_TOKEN: str = ""  # Railway API token for deployments
+    
+    # Deployment Configuration
+    MAX_DEPLOYMENT_DURATION_MINUTES: int = 30  # Maximum deployment duration
+    DEPLOYMENT_CLEANUP_DAYS: int = 30  # Days to keep old deployments
+    MAX_CONCURRENT_DEPLOYMENTS: int = 5  # Maximum concurrent deployments
+    
     # Logging
     LOG_LEVEL: str = "INFO"
     
