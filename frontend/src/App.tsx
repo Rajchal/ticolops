@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { RealtimeProvider } from './contexts/RealtimeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { LoginForm } from './components/auth/LoginForm';
 import { RegisterForm } from './components/auth/RegisterForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -12,6 +13,7 @@ import { Activity } from './pages/Activity';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Deployments } from './pages/Deployments';
+import { Notifications } from './pages/Notifications';
 
 const queryClient = new QueryClient();
 
@@ -43,7 +45,7 @@ const AppRoutes: React.FC = () => {
         <Route path="deployments" element={<Deployments />} />
         <Route path="repositories" element={<div>Repositories Page</div>} />
         <Route path="team" element={<div>Team Page</div>} />
-        <Route path="notifications" element={<div>Notifications Page</div>} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="settings" element={<div>Settings Page</div>} />
         <Route path="profile" element={<div>Profile Page</div>} />
       </Route>
@@ -57,7 +59,9 @@ function App() {
       <Router>
         <AuthProvider>
           <RealtimeProvider>
-            <AppRoutes />
+            <NotificationProvider>
+              <AppRoutes />
+            </NotificationProvider>
           </RealtimeProvider>
         </AuthProvider>
       </Router>

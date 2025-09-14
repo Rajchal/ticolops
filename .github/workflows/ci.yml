@@ -1,0 +1,319 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Run ESLint
+      working-directory: ./frontend
+      run: npm run lint
+    
+    - name: Run TypeScript check
+      working-directory: ./frontend
+      run: npm run type-check
+    
+    - name: Run unit tests
+      working-directory: ./frontend
+      run: npm run test:coverage
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend/coverage/lcov.info
+        flags: frontend
+        name: frontend-coverage
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ticolops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+    
+    - name: Run ESLint
+      working-directory: ./backend
+      run: npm run lint
+    
+    - name: Run TypeScript check
+      working-directory: ./backend
+      run: npm run type-check
+    
+    - name: Setup test database
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ticolops_test
+      run: |
+        npx prisma migrate deploy
+        npx prisma db seed
+    
+    - name: Run unit tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ticolops_test
+        JWT_SECRET: test-secret
+        NODE_ENV: test
+      run: npm run test:coverage
+    
+    - name: Run integration tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ticolops_test
+        JWT_SECRET: test-secret
+        NODE_ENV: test
+      run: npm run test:integration
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage/lcov.info
+        flags: backend
+        name: backend-coverage
+
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ticolops_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        cd frontend && npm ci
+        cd ../backend && npm ci
+    
+    - name: Setup test database
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ticolops_e2e
+      run: |
+        npx prisma migrate deploy
+        npx prisma db seed
+    
+    - name: Install Playwright browsers
+      working-directory: ./frontend
+      run: npx playwright install --with-deps
+    
+    - name: Start backend server
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ticolops_e2e
+        JWT_SECRET: test-secret
+        NODE_ENV: test
+        PORT: 3000
+      run: npm start &
+    
+    - name: Wait for backend to be ready
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:3000/health; do sleep 2; done'
+    
+    - name: Start frontend server
+      working-directory: ./frontend
+      env:
+        VITE_API_URL: http://localhost:3000
+        VITE_WS_URL: ws://localhost:3000
+      run: npm run dev &
+    
+    - name: Wait for frontend to be ready
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:5173; do sleep 2; done'
+    
+    - name: Run Playwright tests
+      working-directory: ./frontend
+      run: npx playwright test
+    
+    - name: Upload Playwright report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-report
+        path: frontend/playwright-report/
+        retention-days: 30
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run npm audit (Frontend)
+      working-directory: ./frontend
+      run: npm audit --audit-level moderate
+    
+    - name: Run npm audit (Backend)
+      working-directory: ./backend
+      run: npm audit --audit-level moderate
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, e2e-tests, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Deploy to Vercel (Frontend)
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: ./frontend
+        vercel-args: '--prod'
+    
+    - name: Build and push Docker image (Backend)
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_REGISTRY }}/ticolops-backend:latest
+          ${{ secrets.DOCKER_REGISTRY }}/ticolops-backend:${{ github.sha }}
+    
+    - name: Deploy to production
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        script: |
+          docker pull ${{ secrets.DOCKER_REGISTRY }}/ticolops-backend:latest
+          docker-compose -f /opt/ticolops/docker-compose.prod.yml up -d --no-deps backend
+          docker system prune -f
+
+  notify:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy]
+    if: always()
+    
+    steps:
+    - name: Notify Discord
+      uses: Ilshidur/action-discord@master
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      with:
+        args: |
+          🚀 **Deployment Status**: ${{ needs.build-and-deploy.result }}
+          📝 **Commit**: ${{ github.event.head_commit.message }}
+          👤 **Author**: ${{ github.event.head_commit.author.name }}
+          🔗 **View**: ${{ github.event.head_commit.url }}
+    
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow

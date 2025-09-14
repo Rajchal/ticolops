@@ -1,11 +1,26 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, User, Settings } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { NotificationBell } from '../notifications/NotificationBell';
+import { NotificationCenter } from '../notifications/NotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export const Header: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const {
+    notifications,
+    markAsRead,
+    markAsUnread,
+    markAllAsRead,
+    dismissNotification,
+    clearAllNotifications,
+    refreshNotifications,
+    isLoading,
+  } = useNotifications();
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
 
   return (
     <header className="border-b bg-card">
@@ -20,6 +35,14 @@ export const Header: React.FC = () => {
         <div className="ml-auto flex items-center space-x-4">
           {user && (
             <>
+              <NotificationBell
+                notifications={notifications}
+                onMarkAsRead={markAsRead}
+                onMarkAsUnread={markAsUnread}
+                onDismiss={dismissNotification}
+                onOpenCenter={() => setShowNotificationCenter(true)}
+              />
+              
               <div className="flex items-center space-x-2">
                 <User className="h-4 w-4" />
                 <span className="text-sm font-medium">{user.name}</span>
@@ -42,6 +65,24 @@ export const Header: React.FC = () => {
             </>
           )}
         </div>
+        
+        {/* Notification Center Modal */}
+        <NotificationCenter
+          isOpen={showNotificationCenter}
+          onClose={() => setShowNotificationCenter(false)}
+          notifications={notifications}
+          onMarkAsRead={markAsRead}
+          onMarkAsUnread={markAsUnread}
+          onMarkAllAsRead={markAllAsRead}
+          onDismiss={dismissNotification}
+          onClearAll={clearAllNotifications}
+          onRefresh={refreshNotifications}
+          onOpenSettings={() => {
+            setShowNotificationCenter(false);
+            navigate('/notifications');
+          }}
+          isLoading={isLoading}
+        />
       </div>
     </header>
   );
