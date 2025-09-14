@@ -4,13 +4,57 @@ import { Button } from '../components/ui/Button';
 import { Activity, Users, GitBranch, Zap, Grid, Sidebar, Maximize2 } from 'lucide-react';
 import { RealtimeDashboard } from '../components/realtime/RealtimeDashboard';
 import { ConnectionStatus } from '../components/realtime/ConnectionStatus';
+import { DeploymentStatusWidget } from '../components/deployments/DeploymentStatusWidget';
 import { useRealtime } from '../contexts/RealtimeContext';
+import { useNavigate } from 'react-router-dom';
 
 export const Dashboard: React.FC = () => {
   const { userPresence } = useRealtime();
+  const navigate = useNavigate();
   const [dashboardLayout, setDashboardLayout] = useState<'grid' | 'sidebar' | 'compact'>('grid');
   
   const onlineCount = userPresence.filter(user => user.status === 'online' || user.status === 'busy').length;
+
+  // Mock deployment data - in a real app, this would come from an API
+  const mockDeployments = [
+    {
+      id: '1',
+      repositoryId: 'repo-1',
+      repositoryName: 'ecommerce-frontend',
+      projectId: 'project-1',
+      projectName: 'E-commerce Platform',
+      branch: 'main',
+      commitHash: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0',
+      commitMessage: 'Add shopping cart functionality',
+      author: 'John Doe',
+      status: 'success' as const,
+      url: 'https://ecommerce-frontend-abc123.vercel.app',
+      previewUrl: 'https://ecommerce-frontend-abc123.vercel.app',
+      buildDuration: 145,
+      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000 + 145 * 1000),
+      logs: [],
+      buildCommand: 'npm run build',
+      environment: 'production' as const,
+    },
+    {
+      id: '2',
+      repositoryId: 'repo-2',
+      repositoryName: 'task-manager-app',
+      projectId: 'project-2',
+      projectName: 'Task Management App',
+      branch: 'develop',
+      commitHash: 'b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1',
+      commitMessage: 'Update API endpoints',
+      author: 'Jane Smith',
+      status: 'building' as const,
+      buildDuration: 67,
+      startedAt: new Date(Date.now() - 5 * 60 * 1000),
+      logs: [],
+      buildCommand: 'npm run build',
+      environment: 'staging' as const,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -104,17 +148,56 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Real-time Collaboration Dashboard */}
-      <RealtimeDashboard 
-        layout={dashboardLayout}
-        showStats={true}
-        maxItems={{
-          activities: 10,
-          presence: 12,
-          conflicts: 5,
-          suggestions: 4,
-        }}
-      />
+      {/* Dashboard Content */}
+      {dashboardLayout === 'sidebar' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            <RealtimeDashboard 
+              layout={dashboardLayout}
+              showStats={false}
+              maxItems={{
+                activities: 10,
+                presence: 12,
+                conflicts: 5,
+                suggestions: 4,
+              }}
+            />
+          </div>
+          <div className="space-y-6">
+            <DeploymentStatusWidget
+              deployments={mockDeployments}
+              onViewAll={() => navigate('/deployments')}
+              onViewPreview={(deployment) => window.open(deployment.url || deployment.previewUrl, '_blank')}
+              maxItems={3}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <RealtimeDashboard 
+                layout={dashboardLayout}
+                showStats={true}
+                maxItems={{
+                  activities: 8,
+                  presence: 10,
+                  conflicts: 3,
+                  suggestions: 3,
+                }}
+              />
+            </div>
+            <div>
+              <DeploymentStatusWidget
+                deployments={mockDeployments}
+                onViewAll={() => navigate('/deployments')}
+                onViewPreview={(deployment) => window.open(deployment.url || deployment.previewUrl, '_blank')}
+                maxItems={5}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

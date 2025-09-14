@@ -11,6 +11,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Activity } from './pages/Activity';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
+import { Deployments } from './pages/Deployments';
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const AppRoutes: React.FC = () => {
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:projectId" element={<ProjectDetail />} />
         <Route path="activity" element={<Activity />} />
+        <Route path="deployments" element={<Deployments />} />
         <Route path="repositories" element={<div>Repositories Page</div>} />
         <Route path="team" element={<div>Team Page</div>} />
         <Route path="notifications" element={<div>Notifications Page</div>} />
