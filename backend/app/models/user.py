@@ -77,5 +77,10 @@ class User(Base):
         nullable=False
     )
 
+    # Relationships (will be imported when activity models are loaded)
+    activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
+    presence_records = relationship("UserPresence", back_populates="user", cascade="all, delete-orphan")
+    activity_summaries = relationship("ActivitySummary", back_populates="user", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, name={self.name})>"

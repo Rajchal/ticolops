@@ -53,6 +53,9 @@ class Project(Base):
     owner = relationship("User", back_populates="owned_projects")
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
     repositories = relationship("Repository", back_populates="project", cascade="all, delete-orphan")
+    activities = relationship("Activity", back_populates="project", cascade="all, delete-orphan")
+    presence_records = relationship("UserPresence", back_populates="project", cascade="all, delete-orphan")
+    activity_summaries = relationship("ActivitySummary", back_populates="project", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Project(id={self.id}, name={self.name}, owner_id={self.owner_id})>"
