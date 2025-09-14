@@ -1,1 +1,15 @@
-# API routes and endpoints
+"""API routes and endpoints."""
+
+from fastapi import APIRouter
+from .auth import router as auth_router
+from .users import router as users_router
+from .projects import router as projects_router
+from .project_files import router as project_files_router
+
+api_router = APIRouter()
+
+# Include routers
+api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
+api_router.include_router(users_router, prefix="/users", tags=["users"])
+api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
+api_router.include_router(project_files_router, prefix="", tags=["project-files"])
