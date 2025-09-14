@@ -58,6 +58,7 @@ class Project(Base):
     activity_summaries = relationship("ActivitySummary", back_populates="project", cascade="all, delete-orphan")
     deployments = relationship("Deployment", back_populates="project", cascade="all, delete-orphan")
     deployment_environments = relationship("DeploymentEnvironment", back_populates="project", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="project", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Project(id={self.id}, name={self.name}, owner_id={self.owner_id})>"
@@ -114,3 +115,7 @@ class ProjectMember(Base):
 from app.models.user import User
 User.owned_projects = relationship("Project", back_populates="owner")
 User.project_memberships = relationship("ProjectMember", back_populates="user")
+User.notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+User.notification_preferences = relationship("NotificationPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
+User.notification_subscriptions = relationship("NotificationSubscription", back_populates="user", cascade="all, delete-orphan")
+User.notification_digests = relationship("NotificationDigest", back_populates="user", cascade="all, delete-orphan")

@@ -1,438 +1,591 @@
-"""Tests for notification service."""
+"""Tests for notification service functionality."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.notification import NotificationService, NotificationType, NotificationPriority
+from app.services.notification_service import (
+    NotificationService, EmailProvider, WebhookProvider, 
+    SlackProvider, InAppProvider
+)
+from app.models.notification import (
+    Notification, NotificationPreferences, NotificationDeliveryLog,
+    NotificationType, NotificationChannel, NotificationPriority, NotificationStatus
+)
 from app.models.user import User
-from app.models.project import Project
 from app.core.exceptions import NotFoundError
 
 
-@pytest.fixture
-def mock_db():
-    """Mock database session."""
-    return AsyncMock()
-
-
-@pytest.fixture
-def notification_service(mock_db):
-    """Notification service instance with mocked database."""
-    service = NotificationService(mock_db)
-    # Mock private methods
-    service._send_realtime_notification = AsyncMock()
-    service._send_email_notification = AsyncMock()
-    return service
-
-
-@pytest.fixture
-def sample_user():
-    """Sample user for testing."""
-    user = User(
-        id=uuid4(),
-        email="test@example.com",
-        name="Test User",
-        hashed_password="hashed_password",
-        role="student",
-        status="active"
-    )
-    user.created_at = datetime.utcnow()
-    user.updated_at = datetime.utcnow()
-    user.last_activity = datetime.utcnow()
-    return user
-
-
-@pytest.fixture
-def sample_project():
-    """Sample project for testing."""
-    project = Project(
-        id=uuid4(),
-        name="Test Project",
-        description="A test project",
-        status="active",
-        owner_id=uuid4(),
-        settings={"auto_save": True},
-        metadata_info={},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        last_activity=datetime.utcnow()
-    )
-    return project
-
-
-class TestNotificationService:
-    """Test cases for NotificationService."""
-
+class TestNotificationProviders:
+    """Test notification delivery providers."""
+    
+    @pytest.fixture
+    def sample_user(self):
+        """Create sample user for testing."""
+        return User(
+            id="user-123",
+            name="Test User",
+            email="test@example.com"
+        )
+    
+    @pytest.fixture
+    def sample_notification(self):
+        """Create sample notification for testing."""
+        return Notification(
+            id="notification-123",
+            user_id="user-123",
+            type=NotificationType.DEPLOYMENT_SUCCESS.value,
+            title="Deployment Successful",
+            message="Your deployment completed successfully!",
+            priority=NotificationPriority.NORMAL.value,
+            action_url="https://app.example.com/deployments/123",
+            action_text="View Deployment",
+            created_at=datetime.utcnow()
+        )
+    
+    @pytest.fixture
+    def sample_preferences(self):
+        """Create sample notification preferences."""
+        return NotificationPreferences(
+            id="prefs-123",
+            user_id="user-123",
+            enabled=True,
+            email_enabled=True,
+            email_address="test@example.com",
+            webhook_enabled=True,
+            webhook_url="https://webhook.example.com",
+            slack_enabled=True,
+            slack_webhook_url="https://hooks.slack.com/services/test",
+            slack_channel="#general"
+        )
+    
     @pytest.mark.asyncio
-    async def test_create_notification_success(self, notification_service):
-        """Test successful notification creation."""
-        recipient_id = str(uuid4())
-        title = "Test Notification"
-        message = "This is a test notification"
+    async def test_email_provider_success(self, sample_notification, sample_user, sample_preferences):
+        """Test successful email delivery."""
+        provider = EmailProvider()
         
-        # Call the method
-        result = await notification_service.create_notification(
-            notification_type=NotificationType.PROJECT_INVITATION,
-            recipient_id=recipient_id,
-            title=title,
-            message=message,
-            priority=NotificationPriority.HIGH
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Assertions
-        assert result["type"] == NotificationType.PROJECT_INVITATION.value
-        assert result["recipient_id"] == recipient_id
-        assert result["title"] == title
-        assert result["message"] == message
-        assert result["priority"] == NotificationPriority.HIGH.value
-        assert result["read"] is False
-        assert "id" in result
-        assert "created_at" in result
-        assert "expires_at" in result
-        
-        # Verify that real-time and email notifications were attempted
-        notification_service._send_realtime_notification.assert_called_once()
-        notification_service._send_email_notification.assert_called_once()
-
+        assert success is True
+        assert error is None
+        assert response is not None
+        assert response["recipient"] == "test@example.com"
+        assert "Deployment Successful" in response["subject"]
+    
     @pytest.mark.asyncio
-    async def test_create_project_invitation_notification_success(self, notification_service, mock_db, sample_user, sample_project):
-        """Test successful project invitation notification creation."""
-        project_id = str(sample_project.id)
-        recipient_email = "recipient@example.com"
-        inviter_id = str(sample_user.id)
-        role = "collaborator"
+    async def test_email_provider_no_email(self, sample_notification, sample_user, sample_preferences):
+        """Test email delivery with no email address."""
+        sample_user.email = None
+        sample_preferences.email_address = None
         
-        # Create recipient user
-        recipient_user = User(
-            id=uuid4(),
-            email=recipient_email,
-            name="Recipient User",
-            hashed_password="hashed_password",
-            role="student",
-            status="active"
+        provider = EmailProvider()
+        
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Mock database queries
-        mock_project_result = MagicMock()
-        mock_project_result.scalar_one_or_none.return_value = sample_project
+        assert success is False
+        assert "No email address available" in error
+        assert response is None
+    
+    @pytest.mark.asyncio
+    async def test_webhook_provider_success(self, sample_notification, sample_user, sample_preferences):
+        """Test successful webhook delivery."""
+        provider = WebhookProvider()
         
-        mock_inviter_result = MagicMock()
-        mock_inviter_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_recipient_result = MagicMock()
-        mock_recipient_result.scalar_one_or_none.return_value = recipient_user
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_project_result, mock_inviter_result, mock_recipient_result])
-        
-        # Call the method
-        result = await notification_service.create_project_invitation_notification(
-            project_id, recipient_email, inviter_id, role
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Assertions
-        assert result["type"] == NotificationType.PROJECT_INVITATION.value
-        assert result["recipient_id"] == str(recipient_user.id)
-        assert sample_project.name in result["title"]
-        assert sample_user.name in result["message"]
-        assert result["priority"] == NotificationPriority.HIGH.value
-        assert result["metadata"]["role"] == role
-
+        assert success is True
+        assert error is None
+        assert response is not None
+        assert response["webhook_url"] == "https://webhook.example.com"
+    
     @pytest.mark.asyncio
-    async def test_create_project_invitation_notification_project_not_found(self, notification_service, mock_db):
-        """Test project invitation notification when project doesn't exist."""
-        project_id = str(uuid4())
-        recipient_email = "recipient@example.com"
-        inviter_id = str(uuid4())
-        role = "collaborator"
+    async def test_webhook_provider_no_url(self, sample_notification, sample_user, sample_preferences):
+        """Test webhook delivery with no URL configured."""
+        sample_preferences.webhook_url = None
         
-        # Mock database query to return None for project
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(return_value=mock_result)
+        provider = WebhookProvider()
         
-        # Call the method and expect NotFoundError
-        with pytest.raises(NotFoundError):
-            await notification_service.create_project_invitation_notification(
-                project_id, recipient_email, inviter_id, role
-            )
-
-    @pytest.mark.asyncio
-    async def test_create_project_invitation_notification_recipient_not_found(self, notification_service, mock_db, sample_user, sample_project):
-        """Test project invitation notification when recipient doesn't exist."""
-        project_id = str(sample_project.id)
-        recipient_email = "nonexistent@example.com"
-        inviter_id = str(sample_user.id)
-        role = "collaborator"
-        
-        # Mock database queries
-        mock_project_result = MagicMock()
-        mock_project_result.scalar_one_or_none.return_value = sample_project
-        
-        mock_inviter_result = MagicMock()
-        mock_inviter_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_recipient_result = MagicMock()
-        mock_recipient_result.scalar_one_or_none.return_value = None  # Recipient not found
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_project_result, mock_inviter_result, mock_recipient_result])
-        
-        # Call the method and expect NotFoundError
-        with pytest.raises(NotFoundError):
-            await notification_service.create_project_invitation_notification(
-                project_id, recipient_email, inviter_id, role
-            )
-
-    @pytest.mark.asyncio
-    async def test_create_member_activity_notification_file_created(self, notification_service, mock_db, sample_user):
-        """Test member activity notification for file creation."""
-        project_id = str(uuid4())
-        actor_id = str(sample_user.id)
-        activity_type = "file_created"
-        activity_details = {"file_name": "test.html", "file_path": "/test.html"}
-        
-        # Create another user as project member
-        member_user = User(
-            id=uuid4(),
-            email="member@example.com",
-            name="Member User",
-            hashed_password="hashed_password",
-            role="student",
-            status="active"
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Mock database queries
-        mock_members_result = MagicMock()
-        mock_members_result.all.return_value = [(member_user, "collaborator")]
+        assert success is False
+        assert "No webhook URL configured" in error
+        assert response is None
+    
+    @pytest.mark.asyncio
+    async def test_slack_provider_success(self, sample_notification, sample_user, sample_preferences):
+        """Test successful Slack delivery."""
+        provider = SlackProvider()
         
-        mock_actor_result = MagicMock()
-        mock_actor_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_members_result, mock_actor_result])
-        
-        # Call the method
-        result = await notification_service.create_member_activity_notification(
-            project_id, actor_id, activity_type, activity_details
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Assertions
-        assert len(result) == 1
-        notification = result[0]
-        assert notification["type"] == NotificationType.FILE_CREATED.value
-        assert notification["recipient_id"] == str(member_user.id)
-        assert "test.html" in notification["title"]
-        assert sample_user.name in notification["message"]
-
+        assert success is True
+        assert error is None
+        assert response is not None
+        assert response["channel"] == "#general"
+    
     @pytest.mark.asyncio
-    async def test_create_member_activity_notification_no_actor(self, notification_service, mock_db):
-        """Test member activity notification when actor doesn't exist."""
-        project_id = str(uuid4())
-        actor_id = str(uuid4())
-        activity_type = "file_created"
-        activity_details = {"file_name": "test.html"}
+    async def test_slack_provider_priority_colors(self, sample_notification, sample_user, sample_preferences):
+        """Test Slack color mapping for different priorities."""
+        provider = SlackProvider()
         
-        # Mock database queries
-        mock_members_result = MagicMock()
-        mock_members_result.all.return_value = []
-        
-        mock_actor_result = MagicMock()
-        mock_actor_result.scalar_one_or_none.return_value = None  # Actor not found
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_members_result, mock_actor_result])
-        
-        # Call the method
-        result = await notification_service.create_member_activity_notification(
-            project_id, actor_id, activity_type, activity_details
-        )
-        
-        # Assertions
-        assert len(result) == 0  # No notifications created when actor not found
-
-    @pytest.mark.asyncio
-    async def test_create_settings_change_notification_success(self, notification_service, mock_db, sample_user, sample_project):
-        """Test successful settings change notification creation."""
-        project_id = str(sample_project.id)
-        actor_id = str(sample_user.id)
-        changes = [
-            {"setting": "auto_save", "old_value": False, "new_value": True},
-            {"setting": "max_collaborators", "old_value": 5, "new_value": 10}
+        # Test different priorities
+        priorities = [
+            (NotificationPriority.LOW.value, "#36a64f"),
+            (NotificationPriority.NORMAL.value, "#2196F3"),
+            (NotificationPriority.HIGH.value, "#ff9800"),
+            (NotificationPriority.URGENT.value, "#f44336")
         ]
         
-        # Create member user
-        member_user = User(
-            id=uuid4(),
-            email="member@example.com",
-            name="Member User",
-            hashed_password="hashed_password",
-            role="student",
-            status="active"
-        )
-        
-        # Mock database queries
-        mock_members_result = MagicMock()
-        mock_members_result.scalars.return_value.all.return_value = [member_user]
-        
-        mock_actor_result = MagicMock()
-        mock_actor_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_project_result = MagicMock()
-        mock_project_result.scalar_one_or_none.return_value = sample_project
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_members_result, mock_actor_result, mock_project_result])
-        
-        # Call the method
-        result = await notification_service.create_settings_change_notification(
-            project_id, actor_id, changes
-        )
-        
-        # Assertions
-        assert len(result) == 1
-        notification = result[0]
-        assert notification["type"] == NotificationType.SETTINGS_CHANGED.value
-        assert notification["recipient_id"] == str(member_user.id)
-        assert sample_project.name in notification["title"]
-        assert sample_user.name in notification["message"]
-        assert notification["metadata"]["changes"] == changes
-
+        for priority, expected_color in priorities:
+            color = provider._get_slack_color(priority)
+            assert color == expected_color
+    
     @pytest.mark.asyncio
-    async def test_create_deployment_notification_success(self, notification_service, mock_db, sample_user, sample_project):
-        """Test successful deployment notification creation."""
-        project_id = str(sample_project.id)
-        deployment_id = str(uuid4())
-        status = "success"
-        deployed_by = str(sample_user.id)
-        deployment_url = "https://example.com"
+    async def test_in_app_provider_success(self, sample_notification, sample_user, sample_preferences):
+        """Test successful in-app delivery."""
+        provider = InAppProvider()
         
-        # Create member user
-        member_user = User(
-            id=uuid4(),
-            email="member@example.com",
-            name="Member User",
-            hashed_password="hashed_password",
-            role="student",
-            status="active"
+        success, error, response = await provider.send_notification(
+            sample_notification, sample_user, sample_preferences
         )
         
-        # Mock database queries
-        mock_members_result = MagicMock()
-        mock_members_result.scalars.return_value.all.return_value = [member_user, sample_user]
-        
-        mock_deployer_result = MagicMock()
-        mock_deployer_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_project_result = MagicMock()
-        mock_project_result.scalar_one_or_none.return_value = sample_project
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_members_result, mock_deployer_result, mock_project_result])
-        
-        # Call the method
-        result = await notification_service.create_deployment_notification(
-            project_id, deployment_id, status, deployed_by, deployment_url
-        )
-        
-        # Assertions
-        assert len(result) == 2  # Both members get notifications
-        notification = result[0]
-        assert notification["type"] == NotificationType.DEPLOYMENT_SUCCESS.value
-        assert "successful" in notification["title"]
-        assert notification["metadata"]["deployment_url"] == deployment_url
+        assert success is True
+        assert error is None
+        assert response is not None
+        assert response["websocket_broadcast"] is True
+        assert response["user_id"] == "user-123"
 
-    @pytest.mark.asyncio
-    async def test_create_deployment_notification_failed(self, notification_service, mock_db, sample_user, sample_project):
-        """Test deployment notification for failed deployment."""
-        project_id = str(sample_project.id)
-        deployment_id = str(uuid4())
-        status = "failed"
-        deployed_by = str(sample_user.id)
-        error_message = "Build failed"
-        
-        # Mock database queries
-        mock_members_result = MagicMock()
-        mock_members_result.scalars.return_value.all.return_value = [sample_user]
-        
-        mock_deployer_result = MagicMock()
-        mock_deployer_result.scalar_one_or_none.return_value = sample_user
-        
-        mock_project_result = MagicMock()
-        mock_project_result.scalar_one_or_none.return_value = sample_project
-        
-        mock_db.execute = AsyncMock(side_effect=[mock_members_result, mock_deployer_result, mock_project_result])
-        
-        # Call the method
-        result = await notification_service.create_deployment_notification(
-            project_id, deployment_id, status, deployed_by, error_message=error_message
-        )
-        
-        # Assertions
-        assert len(result) == 1
-        notification = result[0]
-        assert notification["type"] == NotificationType.DEPLOYMENT_FAILED.value
-        assert notification["priority"] == NotificationPriority.HIGH.value
-        assert "failed" in notification["title"]
-        assert notification["metadata"]["error_message"] == error_message
 
-    @pytest.mark.asyncio
-    async def test_create_conflict_notification_success(self, notification_service, mock_db):
-        """Test successful conflict notification creation."""
-        project_id = str(uuid4())
-        file_path = "/src/index.html"
-        
-        # Create conflicting users
-        user1 = User(id=uuid4(), email="user1@example.com", name="User One", hashed_password="hash", role="student", status="active")
-        user2 = User(id=uuid4(), email="user2@example.com", name="User Two", hashed_password="hash", role="student", status="active")
-        conflicting_users = [str(user1.id), str(user2.id)]
-        
-        # Mock database query
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [user1, user2]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-        
-        # Call the method
-        result = await notification_service.create_conflict_notification(
-            project_id, file_path, conflicting_users
+@pytest.mark.asyncio
+class TestNotificationService:
+    """Test notification service functionality."""
+    
+    @pytest.fixture
+    def mock_db(self):
+        """Mock database session."""
+        return AsyncMock(spec=AsyncSession)
+    
+    @pytest.fixture
+    def notification_service(self, mock_db):
+        """Create notification service instance."""
+        return NotificationService(mock_db)
+    
+    @pytest.fixture
+    def sample_user(self):
+        """Create sample user for testing."""
+        return User(
+            id="user-123",
+            name="Test User",
+            email="test@example.com"
         )
+    
+    @pytest.fixture
+    def sample_preferences(self):
+        """Create sample notification preferences."""
+        return NotificationPreferences(
+            id="prefs-123",
+            user_id="user-123",
+            enabled=True,
+            email_enabled=True,
+            in_app_enabled=True,
+            type_preferences={},
+            project_preferences={}
+        )
+    
+    async def test_create_notification(self, notification_service, sample_preferences):
+        """Test creating a notification."""
+        # Mock get_user_preferences
+        with patch.object(notification_service, 'get_user_preferences', return_value=sample_preferences):
+            # Mock database operations
+            notification_service.db.add = AsyncMock()
+            notification_service.db.commit = AsyncMock()
+            notification_service.db.refresh = AsyncMock()
+            
+            # Mock _deliver_notification
+            with patch.object(notification_service, '_deliver_notification') as mock_deliver:
+                notification = await notification_service.create_notification(
+                    user_id="user-123",
+                    notification_type=NotificationType.DEPLOYMENT_SUCCESS,
+                    title="Test Notification",
+                    message="This is a test notification"
+                )
         
-        # Assertions
-        assert len(result) == 2  # Both users get notifications
-        for notification in result:
-            assert notification["type"] == NotificationType.CONFLICT_DETECTED.value
-            assert notification["priority"] == NotificationPriority.HIGH.value
-            assert file_path in notification["title"]
-            assert "conflict" in notification["message"].lower()
-
-    @pytest.mark.asyncio
+        # Verify notification creation
+        notification_service.db.add.assert_called_once()
+        notification_service.db.commit.assert_called_once()
+        notification_service.db.refresh.assert_called_once()
+    
+    async def test_create_bulk_notifications(self, notification_service):
+        """Test creating bulk notifications."""
+        notifications_data = [
+            {
+                "user_id": "user-123",
+                "type": NotificationType.DEPLOYMENT_SUCCESS.value,
+                "title": "Notification 1",
+                "message": "Message 1",
+                "channels": [NotificationChannel.IN_APP.value]
+            },
+            {
+                "user_id": "user-456",
+                "type": NotificationType.DEPLOYMENT_FAILED.value,
+                "title": "Notification 2",
+                "message": "Message 2",
+                "channels": [NotificationChannel.EMAIL.value]
+            }
+        ]
+        
+        # Mock database operations
+        notification_service.db.add_all = AsyncMock()
+        notification_service.db.commit = AsyncMock()
+        notification_service.db.refresh = AsyncMock()
+        
+        # Mock _deliver_notification
+        with patch.object(notification_service, '_deliver_notification'):
+            notifications = await notification_service.create_bulk_notifications(notifications_data)
+        
+        # Verify bulk creation
+        notification_service.db.add_all.assert_called_once()
+        notification_service.db.commit.assert_called_once()
+        assert len(notifications) == 2
+    
     async def test_get_user_notifications(self, notification_service):
         """Test getting user notifications."""
-        user_id = str(uuid4())
+        # Mock notifications
+        mock_notifications = [
+            Notification(
+                id="notification-1",
+                user_id="user-123",
+                type=NotificationType.DEPLOYMENT_SUCCESS.value,
+                title="Notification 1",
+                message="Message 1",
+                created_at=datetime.utcnow()
+            ),
+            Notification(
+                id="notification-2",
+                user_id="user-123",
+                type=NotificationType.DEPLOYMENT_FAILED.value,
+                title="Notification 2",
+                message="Message 2",
+                created_at=datetime.utcnow() - timedelta(hours=1)
+            )
+        ]
         
-        # Call the method (currently returns empty list)
-        result = await notification_service.get_user_notifications(user_id)
+        # Mock database query
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalars.return_value.all.return_value = mock_notifications
         
-        # Assertions
-        assert isinstance(result, list)
-        assert len(result) == 0  # Current implementation returns empty list
-
-    @pytest.mark.asyncio
-    async def test_mark_notification_read(self, notification_service):
+        notifications = await notification_service.get_user_notifications("user-123")
+        
+        assert len(notifications) == 2
+        assert notifications[0].id == "notification-1"
+        assert notifications[1].id == "notification-2"
+    
+    async def test_get_user_notifications_with_filters(self, notification_service):
+        """Test getting user notifications with filters."""
+        # Mock filtered notifications
+        mock_notifications = [
+            Notification(
+                id="notification-1",
+                user_id="user-123",
+                type=NotificationType.DEPLOYMENT_SUCCESS.value,
+                title="Notification 1",
+                message="Message 1",
+                read_at=None,  # Unread
+                created_at=datetime.utcnow()
+            )
+        ]
+        
+        # Mock database query
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalars.return_value.all.return_value = mock_notifications
+        
+        notifications = await notification_service.get_user_notifications(
+            user_id="user-123",
+            unread_only=True,
+            notification_type=NotificationType.DEPLOYMENT_SUCCESS
+        )
+        
+        assert len(notifications) == 1
+        assert notifications[0].read_at is None
+    
+    async def test_mark_notification_as_read(self, notification_service):
         """Test marking notification as read."""
-        notification_id = str(uuid4())
-        user_id = str(uuid4())
+        mock_notification = Notification(
+            id="notification-123",
+            user_id="user-123",
+            type=NotificationType.DEPLOYMENT_SUCCESS.value,
+            title="Test Notification",
+            message="Test message",
+            read_at=None,
+            status=NotificationStatus.SENT.value
+        )
         
-        # Call the method
-        result = await notification_service.mark_notification_read(notification_id, user_id)
+        # Mock database query
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalar_one_or_none.return_value = mock_notification
+        notification_service.db.commit = AsyncMock()
+        notification_service.db.refresh = AsyncMock()
         
-        # Assertions
-        assert result is True  # Current implementation always returns True
-
-    @pytest.mark.asyncio
-    async def test_mark_all_notifications_read(self, notification_service):
+        updated_notification = await notification_service.mark_notification_as_read(
+            "notification-123", "user-123"
+        )
+        
+        assert updated_notification.read_at is not None
+        assert updated_notification.status == NotificationStatus.READ.value
+        notification_service.db.commit.assert_called_once()
+    
+    async def test_mark_notification_as_read_not_found(self, notification_service):
+        """Test marking non-existent notification as read."""
+        # Mock database query returning None
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalar_one_or_none.return_value = None
+        
+        with pytest.raises(NotFoundError):
+            await notification_service.mark_notification_as_read("nonexistent", "user-123")
+    
+    async def test_mark_all_notifications_as_read(self, notification_service):
         """Test marking all notifications as read."""
-        user_id = str(uuid4())
-        project_id = str(uuid4())
+        # Mock database update
+        mock_result = AsyncMock()
+        mock_result.rowcount = 5
+        notification_service.db.execute = AsyncMock(return_value=mock_result)
+        notification_service.db.commit = AsyncMock()
         
-        # Call the method
-        result = await notification_service.mark_all_notifications_read(user_id, project_id)
+        count = await notification_service.mark_all_notifications_as_read("user-123")
         
-        # Assertions
-        assert result == 0  # Current implementation returns 0
+        assert count == 5
+        notification_service.db.commit.assert_called_once()
+    
+    async def test_delete_notification(self, notification_service):
+        """Test deleting a notification."""
+        mock_notification = Notification(
+            id="notification-123",
+            user_id="user-123",
+            type=NotificationType.DEPLOYMENT_SUCCESS.value,
+            title="Test Notification",
+            message="Test message"
+        )
+        
+        # Mock database operations
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalar_one_or_none.return_value = mock_notification
+        notification_service.db.delete = AsyncMock()
+        notification_service.db.commit = AsyncMock()
+        
+        success = await notification_service.delete_notification("notification-123", "user-123")
+        
+        assert success is True
+        notification_service.db.delete.assert_called_once_with(mock_notification)
+        notification_service.db.commit.assert_called_once()
+    
+    async def test_get_user_preferences_existing(self, notification_service, sample_preferences):
+        """Test getting existing user preferences."""
+        # Mock database query
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalar_one_or_none.return_value = sample_preferences
+        
+        preferences = await notification_service.get_user_preferences("user-123")
+        
+        assert preferences.id == "prefs-123"
+        assert preferences.enabled is True
+    
+    async def test_get_user_preferences_create_default(self, notification_service):
+        """Test creating default preferences when none exist."""
+        # Mock database query returning None
+        notification_service.db.execute = AsyncMock()
+        notification_service.db.execute.return_value.scalar_one_or_none.return_value = None
+        
+        # Mock create_default_preferences
+        default_preferences = NotificationPreferences(
+            id="new-prefs",
+            user_id="user-123",
+            enabled=True,
+            email_enabled=True,
+            in_app_enabled=True
+        )
+        
+        with patch.object(notification_service, 'create_default_preferences', return_value=default_preferences):
+            preferences = await notification_service.get_user_preferences("user-123")
+        
+        assert preferences.id == "new-prefs"
+        assert preferences.enabled is True
+    
+    async def test_create_default_preferences(self, notification_service):
+        """Test creating default notification preferences."""
+        # Mock database operations
+        notification_service.db.add = AsyncMock()
+        notification_service.db.commit = AsyncMock()
+        notification_service.db.refresh = AsyncMock()
+        
+        preferences = await notification_service.create_default_preferences("user-123")
+        
+        assert preferences.enabled is True
+        assert preferences.email_enabled is True
+        assert preferences.in_app_enabled is True
+        notification_service.db.add.assert_called_once()
+        notification_service.db.commit.assert_called_once()
+    
+    async def test_update_user_preferences(self, notification_service, sample_preferences):
+        """Test updating user preferences."""
+        # Mock get_user_preferences
+        with patch.object(notification_service, 'get_user_preferences', return_value=sample_preferences):
+            notification_service.db.commit = AsyncMock()
+            notification_service.db.refresh = AsyncMock()
+            
+            updates = {
+                "email_enabled": False,
+                "slack_enabled": True,
+                "quiet_hours_enabled": True
+            }
+            
+            updated_preferences = await notification_service.update_user_preferences("user-123", updates)
+        
+        assert updated_preferences.email_enabled is False
+        assert updated_preferences.slack_enabled is True
+        assert updated_preferences.quiet_hours_enabled is True
+        notification_service.db.commit.assert_called_once()
+    
+    async def test_get_notification_stats(self, notification_service):
+        """Test getting notification statistics."""
+        # Mock database queries
+        notification_service.db.execute = AsyncMock()
+        
+        # Mock query results
+        total_result = AsyncMock()
+        total_result.scalar.return_value = 100
+        
+        unread_result = AsyncMock()
+        unread_result.scalar.return_value = 15
+        
+        type_result = AsyncMock()
+        type_result.fetchall.return_value = [
+            ("deployment_success", 50),
+            ("deployment_failed", 10),
+            ("user_mentioned", 20)
+        ]
+        
+        status_result = AsyncMock()
+        status_result.fetchall.return_value = [
+            ("sent", 80),
+            ("read", 70),
+            ("failed", 5)
+        ]
+        
+        priority_result = AsyncMock()
+        priority_result.fetchall.return_value = [
+            ("normal", 85),
+            ("high", 10),
+            ("urgent", 5)
+        ]
+        
+        recent_result = AsyncMock()
+        recent_result.scalars.return_value.all.return_value = []
+        
+        # Set up execute return values
+        notification_service.db.execute.side_effect = [
+            total_result,
+            unread_result,
+            type_result,
+            status_result,
+            priority_result,
+            recent_result
+        ]
+        
+        # Mock delivery success rate calculation
+        with patch.object(notification_service, '_calculate_delivery_success_rate', return_value=95.5):
+            stats = await notification_service.get_notification_stats("user-123")
+        
+        assert stats["total_notifications"] == 100
+        assert stats["unread_notifications"] == 15
+        assert stats["notifications_by_type"]["deployment_success"] == 50
+        assert stats["notifications_by_status"]["sent"] == 80
+        assert stats["notifications_by_priority"]["normal"] == 85
+        assert stats["delivery_success_rate"] == 95.5
+    
+    async def test_determine_channels(self, notification_service, sample_preferences):
+        """Test determining delivery channels from preferences."""
+        channels = await notification_service._determine_channels(
+            NotificationType.DEPLOYMENT_SUCCESS, sample_preferences
+        )
+        
+        # Should include in_app and email based on preferences
+        assert NotificationChannel.IN_APP in channels
+        assert NotificationChannel.EMAIL in channels
+    
+    async def test_determine_channels_default(self, notification_service):
+        """Test determining channels with no preferences enabled."""
+        disabled_preferences = NotificationPreferences(
+            user_id="user-123",
+            enabled=True,
+            email_enabled=False,
+            in_app_enabled=False,
+            webhook_enabled=False,
+            slack_enabled=False
+        )
+        
+        channels = await notification_service._determine_channels(
+            NotificationType.DEPLOYMENT_SUCCESS, disabled_preferences
+        )
+        
+        # Should default to in_app when no channels enabled
+        assert channels == [NotificationChannel.IN_APP]
+    
+    def test_is_channel_enabled(self, notification_service, sample_preferences):
+        """Test checking if a channel is enabled."""
+        # Email should be enabled
+        assert notification_service._is_channel_enabled(
+            NotificationChannel.EMAIL, "deployment_success", sample_preferences
+        ) is True
+        
+        # Webhook should be enabled (has URL)
+        assert notification_service._is_channel_enabled(
+            NotificationChannel.WEBHOOK, "deployment_success", sample_preferences
+        ) is True
+        
+        # SMS should be disabled (not configured)
+        sample_preferences.sms_enabled = False
+        assert notification_service._is_channel_enabled(
+            NotificationChannel.SMS, "deployment_success", sample_preferences
+        ) is False
+    
+    async def test_calculate_delivery_success_rate(self, notification_service):
+        """Test calculating delivery success rate."""
+        # Mock database queries
+        notification_service.db.execute = AsyncMock()
+        
+        total_result = AsyncMock()
+        total_result.scalar.return_value = 100
+        
+        success_result = AsyncMock()
+        success_result.scalar.return_value = 95
+        
+        notification_service.db.execute.side_effect = [total_result, success_result]
+        
+        success_rate = await notification_service._calculate_delivery_success_rate("user-123")
+        
+        assert success_rate == 95.0
+    
+    async def test_calculate_delivery_success_rate_no_data(self, notification_service):
+        """Test calculating delivery success rate with no data."""
+        # Mock database queries returning 0
+        notification_service.db.execute = AsyncMock()
+        
+        total_result = AsyncMock()
+        total_result.scalar.return_value = 0
+        
+        notification_service.db.execute.return_value = total_result
+        
+        success_rate = await notification_service._calculate_delivery_success_rate("user-123")
+        
+        assert success_rate == 100.0  # Perfect score when no data

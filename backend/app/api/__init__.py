@@ -12,6 +12,7 @@ from .webhooks import router as webhooks_router
 from .deployment import router as deployment_router
 from .deployment_monitoring import router as deployment_monitoring_router
 from .deployment_recovery import router as deployment_recovery_router
+from .notifications import router as notifications_router
 # Temporarily commented out until project schemas are properly set up
 # from .projects import router as projects_router
 # from .project_files import router as project_files_router
@@ -31,6 +32,7 @@ api_router.include_router(webhooks_router, prefix="", tags=["webhooks"])
 api_router.include_router(deployment_router, prefix="", tags=["deployment"])
 api_router.include_router(deployment_monitoring_router, prefix="", tags=["deployment-monitoring"])
 api_router.include_router(deployment_recovery_router, prefix="", tags=["deployment-recovery"])
+api_router.include_router(notifications_router, prefix="", tags=["notifications"])
 # api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
 # api_router.include_router(project_files_router, prefix="", tags=["project-files"])
 # api_router.include_router(workspace_router, prefix="", tags=["workspace"])
