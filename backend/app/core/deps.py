@@ -2,7 +2,7 @@
 FastAPI dependencies for authentication and database access.
 """
 
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,6 +79,22 @@ async def get_current_active_user(
             detail="User is offline"
         )
     return current_user
+
+
+async def get_current_user_from_token(token: str, db: AsyncSession) -> Optional[User]:
+    """Helper used by WebSocket handlers to authenticate a user from a token.
+
+    Returns the user schema on success or None on failure. This differs from
+    the HTTP dependency which raises HTTPException; WebSocket handlers prefer
+    a falsy return to close the connection gracefully.
+    """
+    auth_service = AuthService(db)
+    try:
+        user = await auth_service.validate_token(token)
+        return user
+    except Exception:
+        # Return None so callers can close the socket with a policy violation
+        return None
 
 
 def require_role(required_role: str):

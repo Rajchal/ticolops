@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  backend:
+    depends_on:
+      - postgres
+      - redis
+    command: sh -c "sleep 2 && alembic upgrade head || true; python scripts/seed_demo.py || true; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

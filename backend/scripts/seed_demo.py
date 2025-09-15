@@ -1,97 +1,143 @@
-"""Seed script to create minimal demo data for a hackathon demo.
+"""Lightweight SQL-based seeder for demo purposes.
 
-This script connects using `DATABASE_URL` from the app settings, creates tables
-(if not present), and inserts a demo user, demo project, and a couple of activities.
+This seeder avoids importing ORM model classes (which can trigger mapper
+configuration issues for partially implemented models). It expects the
+database schema to already exist (run Alembic migrations first). If tables
+are missing, it will print a helpful message.
 
-Run after starting the `docker-compose.yml` services (postgres, redis, backend).
+Run after starting services with docker-compose (or after running migrations).
 """
 
 import asyncio
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
-
-from app.core.config import settings
-from app.core.database import engine, AsyncSessionLocal
-from app.models.user import User, UserRoleEnum, UserStatusEnum
-from app.models.project import Project, ProjectMember
-from app.models.activity import Activity
-
 import uuid
 from datetime import datetime
 
+from sqlalchemy import text
 
-async def create_tables():
-    # We rely on SQLAlchemy models and let Alembic handle migrations in production.
-    # For the demo we'll create missing tables using metadata.create_all via sync engine.
-    # Use a sync connection via the async engine's raw connection.
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: sync_conn.exec_driver_sql('SELECT 1'))
+from app.core.config import settings
+from app.core.database import engine
+
+
+async def table_exists(conn, table_name: str) -> bool:
+    q = text("SELECT to_regclass(:t) IS NOT NULL AS exists")
+    res = await conn.execute(q.bindparams(t=table_name))
+    row = res.first()
+    return bool(row and row[0])
 
 
 async def seed():
-    async with AsyncSessionLocal() as session:
-        # Create a demo user
-        demo_user = User(
-            id=uuid.uuid4(),
-            email='demo@ticolops.local',
-            name='Demo User',
-            hashed_password='not_used_in_demo',
-            avatar=None,
-            role=UserRoleEnum.ADMIN,
-            status=UserStatusEnum.ONLINE,
-            last_activity=datetime.utcnow()
-        )
+    async with engine.begin() as conn:
+        # Check for required tables
+        required = ["users", "projects", "project_members", "activities"]
+        missing = []
+        for t in required:
+            exists = await table_exists(conn, t)
+            if not exists:
+                missing.append(t)
 
-        # Create a demo project
-        demo_project = Project(
-            id=uuid.uuid4(),
-            name='Demo Project',
-            description='Project used for hackathon demo',
-            owner_id=demo_user.id
-        )
+        if missing:
+            print("The following tables are missing:", missing)
+            print("Please run migrations (alembic upgrade head) before seeding.")
+            return
 
-        # Project member linking demo user
-        project_member = ProjectMember(
-            id=uuid.uuid4(),
-            project_id=demo_project.id,
-            user_id=demo_user.id,
-            role='owner'
-        )
+        user_id = str(uuid.uuid4())
+        project_id = str(uuid.uuid4())
+        now = datetime.utcnow()
 
-        # Add a couple of activities
-        activity1 = Activity(
-            id=uuid.uuid4(),
-            type='file_created',
-            title='Created README.md',
-            description='Initial README for demo',
-            user_id=demo_user.id,
-            project_id=demo_project.id,
-            location='README.md',
-            meta_data={},
-            created_at=datetime.utcnow()
-        )
+        # Insert demo user
+        await conn.execute(text(
+            """
+            INSERT INTO users (id, email, name, hashed_password, role, status, last_activity, preferences, created_at, updated_at)
+            VALUES (:id, :email, :name, :pwd, :role, :status, :last_activity, :prefs, :now, :now)
+            ON CONFLICT (email) DO NOTHING
+            """
+        ), {
+            "id": user_id,
+            "email": "demo@ticolops.local",
+            "name": "Demo User",
+            "pwd": "not_used_in_demo",
+            "role": "admin",
+            "status": "online",
+            "last_activity": now,
+            "prefs": "{}",
+            "now": now
+        })
 
-        activity2 = Activity(
-            id=uuid.uuid4(),
-            type='comment_added',
-            title='Added comment to proposal',
-            description='Great work!',
-            user_id=demo_user.id,
-            project_id=demo_project.id,
-            location='proposal.md',
-            meta_data={},
-            created_at=datetime.utcnow()
-        )
+        # Insert demo project
+        await conn.execute(text(
+            """
+            INSERT INTO projects (id, name, description, owner_id, created_at, updated_at)
+            VALUES (:id, :name, :desc, :owner_id, :now, :now)
+            ON CONFLICT (id) DO NOTHING
+            """
+        ), {
+            "id": project_id,
+            "name": "Demo Project",
+            "desc": "Project used for hackathon demo",
+            "owner_id": user_id,
+            "now": now
+        })
 
-        session.add_all([demo_user, demo_project, project_member, activity1, activity2])
-        await session.commit()
-        print("Seeded demo data: demo user, project, and activities")
+        # Insert project member
+        await conn.execute(text(
+            """
+            INSERT INTO project_members (id, project_id, user_id, role, joined_at, updated_at)
+            VALUES (:id, :project_id, :user_id, :role, :now, :now)
+            ON CONFLICT (project_id, user_id) DO NOTHING
+            """
+        ), {
+            "id": str(uuid.uuid4()),
+            "project_id": project_id,
+            "user_id": user_id,
+            "role": "owner",
+            "now": now
+        })
+
+        # Insert a couple of activities
+        await conn.execute(text(
+            """
+            INSERT INTO activities (id, type, title, description, user_id, project_id, location, meta_data, priority, created_at)
+            VALUES (:id, :type, :title, :desc, :user_id, :project_id, :loc, :meta, :priority, :now)
+            ON CONFLICT (id) DO NOTHING
+            """
+        ), {
+            "id": str(uuid.uuid4()),
+            "type": "file_created",
+            "title": "Created README.md",
+            "desc": "Initial README for demo",
+            "user_id": user_id,
+            "project_id": project_id,
+            "loc": "README.md",
+            "meta": "{}",
+            "priority": "medium",
+            "now": now
+        })
+
+        await conn.execute(text(
+            """
+            INSERT INTO activities (id, type, title, description, user_id, project_id, location, meta_data, priority, created_at)
+            VALUES (:id, :type, :title, :desc, :user_id, :project_id, :loc, :meta, :priority, :now)
+            ON CONFLICT (id) DO NOTHING
+            """
+        ), {
+            "id": str(uuid.uuid4()),
+            "type": "comment_added",
+            "title": "Added comment to proposal",
+            "desc": "Great work!",
+            "user_id": user_id,
+            "project_id": project_id,
+            "loc": "proposal.md",
+            "meta": "{}",
+            "priority": "low",
+            "now": now
+        })
+
+        print("Seeded demo data: demo user, project, project member, and activities")
 
 
 def main():
     print("Seeding demo data using DATABASE_URL:", settings.DATABASE_URL)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(seed())
+    asyncio.run(seed())
 
 
 if __name__ == '__main__':
