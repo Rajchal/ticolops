@@ -127,7 +127,8 @@ class NotificationTriggerService:
             
             logger.debug(f"Processed activity event {event_type} for activity {activity.id}")
         
-        except Exception as e:\n            logger.error(f"Error handling activity event {event_type}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error handling activity event {event_type}: {str(e)}")
     
     async def detect_and_handle_mentions(
         self,

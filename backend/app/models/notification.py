@@ -58,6 +58,16 @@ class NotificationChannel(str, Enum):
     SMS = "sms"
 
 
+class NotificationCategory(str, Enum):
+    """High-level categories for notifications used by the trigger system."""
+    ACTIVITY = "activity"
+    COLLABORATION = "collaboration"
+    DEPLOYMENT = "deployment"
+    SYSTEM = "system"
+    PROJECT = "project"
+    REPOSITORY = "repository"
+
+
 class NotificationPriority(str, Enum):
     """Notification priority levels."""
     LOW = "low"

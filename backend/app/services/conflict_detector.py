@@ -51,3 +51,13 @@ async def detect_project_conflicts(project_id: str) -> List[Dict[str, Any]]:
 async def find_collaboration_opportunities(project_id: str, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     await asyncio.sleep(0)
     return []
+
+
+async def start_conflict_detector():
+    # In real system this would start background tasks; for demo it's a no-op
+    await asyncio.sleep(0)
+
+
+async def stop_conflict_detector():
+    # No-op for demo
+    await asyncio.sleep(0)

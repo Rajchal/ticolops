@@ -142,14 +142,14 @@ class NotificationPreferencesBase(BaseModel):
     """Base notification preferences schema."""
     enabled: bool = Field(True, description="Global notification toggle")
     quiet_hours_enabled: bool = Field(False, description="Enable quiet hours")
-    quiet_hours_start: Optional[str] = Field(None, regex=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours start time (HH:MM)")
-    quiet_hours_end: Optional[str] = Field(None, regex=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours end time (HH:MM)")
+    quiet_hours_start: Optional[str] = Field(None, pattern=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours start time (HH:MM)")
+    quiet_hours_end: Optional[str] = Field(None, pattern=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours end time (HH:MM)")
     timezone: str = Field("UTC", description="User timezone")
     
     # Channel preferences
     email_enabled: bool = Field(True, description="Enable email notifications")
     email_address: Optional[str] = Field(None, description="Override email address")
-    email_frequency: str = Field("immediate", regex="^(immediate|hourly|daily)$", description="Email delivery frequency")
+    email_frequency: str = Field("immediate", pattern="^(immediate|hourly|daily)$", description="Email delivery frequency")
     
     in_app_enabled: bool = Field(True, description="Enable in-app notifications")
     webhook_enabled: bool = Field(False, description="Enable webhook notifications")
@@ -178,13 +178,13 @@ class NotificationPreferencesUpdate(BaseModel):
     """Schema for updating notification preferences."""
     enabled: Optional[bool] = Field(None, description="Global notification toggle")
     quiet_hours_enabled: Optional[bool] = Field(None, description="Enable quiet hours")
-    quiet_hours_start: Optional[str] = Field(None, regex=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours start time")
-    quiet_hours_end: Optional[str] = Field(None, regex=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours end time")
+    quiet_hours_start: Optional[str] = Field(None, pattern=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours start time")
+    quiet_hours_end: Optional[str] = Field(None, pattern=r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="Quiet hours end time")
     timezone: Optional[str] = Field(None, description="User timezone")
     
     email_enabled: Optional[bool] = Field(None, description="Enable email notifications")
     email_address: Optional[str] = Field(None, description="Override email address")
-    email_frequency: Optional[str] = Field(None, regex="^(immediate|hourly|daily)$", description="Email frequency")
+    email_frequency: Optional[str] = Field(None, pattern="^(immediate|hourly|daily)$", description="Email frequency")
     
     in_app_enabled: Optional[bool] = Field(None, description="Enable in-app notifications")
     webhook_enabled: Optional[bool] = Field(None, description="Enable webhook notifications")
@@ -340,7 +340,7 @@ class NotificationStats(BaseModel):
 class NotificationDigestCreate(BaseModel):
     """Schema for creating notification digest."""
     user_id: str = Field(..., description="User ID")
-    digest_type: str = Field(..., regex="^(hourly|daily|weekly)$", description="Digest type")
+    digest_type: str = Field(..., pattern="^(hourly|daily|weekly)$", description="Digest type")
     period_start: datetime = Field(..., description="Digest period start")
     period_end: datetime = Field(..., description="Digest period end")
     notification_ids: List[str] = Field(..., description="Notification IDs to include")

@@ -9,4 +9,8 @@ services:
     depends_on:
       - postgres
       - redis
-    command: sh -c "sleep 2 && alembic upgrade head || true; python scripts/seed_demo.py || true; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    # For the hackathon/demo we skip running alembic migrations automatically because the
+    # demo database uses idempotent CREATE TABLE IF NOT EXISTS scripts. Running alembic here
+    # caused DuplicateTableError when the DB already contained demo tables. Instead we run
+    # the idempotent create + seed scripts and then start the app.
+    command: sh -c "sleep 2 && PYTHONPATH=/app python scripts/create_demo_tables.py || true; PYTHONPATH=/app python scripts/seed_demo.py || true; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

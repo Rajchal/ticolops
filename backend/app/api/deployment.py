@@ -246,7 +246,7 @@ async def get_deployment_stats(
 @router.get("/deployments/{deployment_id}/logs")
 async def get_deployment_logs(
     deployment_id: str,
-    log_type: str = Query("all", regex="^(all|build|deployment)$", description="Type of logs to retrieve"),
+    log_type: str = Query("all", pattern="^(all|build|deployment)$", description="Type of logs to retrieve"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):

@@ -262,8 +262,8 @@ async def get_repository_stats(
 @router.post("/repositories/{repository_id}/sync")
 async def sync_repository(
     repository_id: str,
-    access_token: str = Query(..., description="Git provider access token"),
     background_tasks: BackgroundTasks,
+    access_token: str = Query(..., description="Git provider access token"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):

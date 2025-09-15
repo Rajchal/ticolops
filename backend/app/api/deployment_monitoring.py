@@ -154,7 +154,7 @@ async def get_deployment_status(
 @router.get("/deployments/{deployment_id}/logs/stream")
 async def stream_deployment_logs(
     deployment_id: str,
-    log_type: str = Query("all", regex="^(all|build|deployment)$", description="Type of logs to stream"),
+    log_type: str = Query("all", pattern="^(all|build|deployment)$", description="Type of logs to stream"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):

@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import aiohttp
 import base64
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
@@ -28,12 +27,21 @@ class GitProviderClient:
         self.session = None
     
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        try:
+            import aiohttp as _aiohttp
+        except Exception as e:
+            # Defer error until client is used to allow the app to import in demo
+            raise ExternalServiceError("aiohttp is required for Git provider clients") from e
+
+        self.session = _aiohttp.ClientSession()
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
-            await self.session.close()
+            try:
+                await self.session.close()
+            except Exception:
+                pass
     
     async def _make_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
         """Make authenticated request to Git provider API."""
@@ -314,8 +322,7 @@ class GitLabClient(GitProviderClient):
             for commit in commits
         ]
 
-c
-lass RepositoryService:
+class RepositoryService:
     """Service for managing repository connections and Git provider integrations."""
     
     def __init__(self, db: AsyncSession):
