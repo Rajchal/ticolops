@@ -10,6 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.redis import get_redis
 from app.services.activity import ActivityService, PresenceService
 from app.schemas.activity import UserPresenceCreate, UserPresenceStatus, ActivityType
@@ -398,6 +399,10 @@ class ConnectionManager:
     ):
         """Update user presence in database."""
         try:
+            # Avoid database presence updates in DEBUG local demo to prevent
+            # failures when migrations/tables like `user_presence` are not present.
+            if settings.DEBUG:
+                return
             # Get database session
             async for db in get_db():
                 presence_service = PresenceService(db)

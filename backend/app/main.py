@@ -14,7 +14,12 @@ from app.core.redis import init_redis
 from app.core.logging import setup_logging
 from app.core.openapi import custom_openapi
 from app.api import api_router
-from app.services.socketio_server import socketio_app
+try:
+    # Import socketio app lazily; in some dev containers socketio may not be installed
+    # and we want the native /api/ws fallback to work without failure.
+    from app.services.socketio_server import socketio_app
+except Exception:
+    socketio_app = None
 from app.api.enhanced_docs import ALL_EXAMPLES, COMMON_RESPONSES
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 from app.services.presence_manager import start_presence_manager, stop_presence_manager
@@ -112,11 +117,24 @@ def create_app() -> FastAPI:
     # Include API router
     app.include_router(api_router, prefix="/api")
 
-    # Mount Socket.IO ASGI app at /socket.io only in non-debug (production) mode.
-    # In local/demo DEBUG mode we prefer the native /api/ws endpoint to avoid
-    # engine.io polling/upgrade mismatches that can produce 403/404 in dev.
-    if not settings.DEBUG:
+    # Mount Socket.IO ASGI app at /socket.io when available so socket.io clients
+    # (tests or other integrations) receive proper engine.io polling and upgrade
+    # responses. If the socketio package is not installed the lazy import above
+    # will leave `socketio_app` as None and we fall back to a lightweight
+    # placeholder route in DEBUG to reduce 404 noise.
+    if socketio_app is not None:
         app.mount('/socket.io', socketio_app)
+    elif settings.DEBUG:
+        # During DEBUG show a lightweight placeholder response for socket.io polling
+        # to reduce 404 noise when frontend clients attempt socket.io in dev.
+        from fastapi import APIRouter
+        sio_router = APIRouter()
+
+        @sio_router.get('/socket.io/')
+        async def socketio_polling_placeholder():
+            return {"message": "socket.io placeholder (DEBUG)"}
+
+        app.include_router(sio_router)
     
     # Set custom OpenAPI schema
     app.openapi = lambda: custom_openapi(app)

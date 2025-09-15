@@ -173,7 +173,14 @@ async def handle_websocket_message(
         project_id: Optional project ID
         db: Database session
     """
-    message_type = message.get("type")
+    # Normalize message_type so variants like 'presence:update' or 'presence/update'
+    # are handled as 'presence_update'. This makes the system tolerant to
+    # different publishers or legacy clients.
+    raw_message_type = message.get("type")
+    if isinstance(raw_message_type, str):
+        message_type = raw_message_type.replace(':', '_').replace('/', '_')
+    else:
+        message_type = raw_message_type
     data = message.get("data", {})
     
     logger.debug(f"Handling WebSocket message: type={message_type}, user={user_id}")
@@ -219,7 +226,8 @@ async def handle_websocket_message(
             await handle_broadcast_message(user_id, project_id, data, db)
         
         else:
-            logger.warning(f"Unknown message type: {message_type}")
+            # Log both raw and normalized message type for debugging
+            logger.warning(f"Unknown message type: normalized={message_type} raw={raw_message_type}")
             await send_error_message_to_connection(connection_id, f"Unknown message type: {message_type}")
     
     except Exception as e:

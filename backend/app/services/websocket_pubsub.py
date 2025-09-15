@@ -159,15 +159,31 @@ class WebSocketPubSubService:
             presence_data: Presence data
         """
         try:
+            # Ensure presence_data is JSON serializable (convert datetimes/UUIDs)
+            def _safe(obj):
+                import uuid
+
+                if isinstance(obj, dict):
+                    return {k: _safe(v) for k, v in obj.items()}
+                if isinstance(obj, list):
+                    return [_safe(v) for v in obj]
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                if isinstance(obj, uuid.UUID):
+                    return str(obj)
+                return obj
+
+            safe_presence = _safe(presence_data or {})
+
             payload = {
                 "type": "presence_update",
                 "user_id": user_id,
                 "project_id": project_id,
-                "presence_data": presence_data,
+                "presence_data": safe_presence,
                 "timestamp": datetime.utcnow().isoformat(),
                 "instance_id": self._get_instance_id()
             }
-            
+
             await self.redis.publish("websocket:presence_update", json.dumps(payload))
             logger.debug(f"Published presence update to Redis: user={user_id}")
         except Exception as e:
@@ -205,8 +221,38 @@ class WebSocketPubSubService:
     async def _handle_redis_message(self, message):
         """Handle incoming Redis pub/sub message."""
         try:
-            channel = message["channel"].decode("utf-8")
-            data = json.loads(message["data"].decode("utf-8"))
+            # message may vary depending on Redis client. Log debug info.
+            logger.debug(f"Redis incoming message raw: type={type(message)} repr={repr(message)[:200]}")
+
+            # message['channel'] and message['data'] may be bytes or str depending on
+            # the Redis client implementation/version. Handle both safely.
+            channel = message.get("channel")
+            if isinstance(channel, (bytes, bytearray)):
+                channel = channel.decode("utf-8")
+            elif isinstance(channel, memoryview):
+                channel = channel.tobytes().decode("utf-8")
+
+            raw_data = message.get("data")
+            if isinstance(raw_data, (bytes, bytearray)):
+                raw_text = raw_data.decode("utf-8")
+            elif isinstance(raw_data, memoryview):
+                raw_text = raw_data.tobytes().decode("utf-8")
+            elif isinstance(raw_data, str):
+                raw_text = raw_data
+            else:
+                # If Redis client already returned decoded object (e.g. dict),
+                # use it directly; otherwise, fallback to string conversion.
+                try:
+                    raw_text = json.dumps(raw_data)
+                except Exception:
+                    raw_text = str(raw_data)
+
+            # Parse JSON payload if possible
+            try:
+                data = json.loads(raw_text)
+            except Exception:
+                # If payload is not JSON, wrap it so handlers can still see it
+                data = {"type": "raw", "payload": raw_text}
             
             # Skip messages from this instance to avoid loops
             if data.get("instance_id") == self._get_instance_id():
@@ -229,6 +275,11 @@ class WebSocketPubSubService:
                 logger.warning(f"Unknown Redis channel: {channel}")
                 
         except Exception as e:
+            # Log full exception with message preview for easier diagnosis
+            try:
+                logger.exception(f"Error handling Redis message. raw_message={repr(message)[:1000]}")
+            except Exception:
+                logger.exception("Error handling Redis message and failed to repr(message)")
             logger.error(f"Error handling Redis message: {e}")
 
     async def _handle_broadcast_message(self, data: Dict[str, Any]):

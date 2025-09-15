@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.redis import get_redis
 from app.services.activity import PresenceService
 from app.services.websocket_pubsub import notify_presence_update_instances
@@ -421,6 +422,10 @@ class PresenceManager:
     ):
         """Update user presence in database."""
         try:
+            # In DEBUG mode we avoid writing presence to the database to keep the
+            # local demo simple (avoids requiring migrations/tables).
+            if settings.DEBUG:
+                return
             async for db in get_db():
                 presence_service = PresenceService(db)
                 
