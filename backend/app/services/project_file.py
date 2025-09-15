@@ -1,6 +1,6 @@
 """Project file service for handling file-related operations."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession

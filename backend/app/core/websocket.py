@@ -498,7 +498,9 @@ class ConnectionManager:
 connection_manager = ConnectionManager()
 
 
-# Background task to clean up stale connections
+_cleanup_task = None
+
+
 async def cleanup_stale_connections_task():
     """Background task to periodically clean up stale connections."""
     while True:
@@ -509,5 +511,16 @@ async def cleanup_stale_connections_task():
             logger.error(f"Error in cleanup task: {e}")
 
 
-# Start cleanup task when module is imported
-asyncio.create_task(cleanup_stale_connections_task())
+async def start_connection_cleanup_task():
+    """Start the background cleanup task if not already running."""
+    global _cleanup_task
+    if _cleanup_task is None:
+        _cleanup_task = asyncio.create_task(cleanup_stale_connections_task())
+
+
+async def stop_connection_cleanup_task():
+    """Cancel the background cleanup task if running."""
+    global _cleanup_task
+    if _cleanup_task is not None:
+        _cleanup_task.cancel()
+        _cleanup_task = None

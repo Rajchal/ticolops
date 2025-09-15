@@ -27,6 +27,8 @@ interface LoginResponse {
     role: 'student' | 'coordinator' | 'admin';
   };
   token: string;
+  refresh_token?: string;
+  expires_in?: number;
 }
 
 interface RegisterData {
@@ -39,12 +41,25 @@ interface RegisterData {
 export const authService = {
   async login(email: string, password: string): Promise<LoginResponse> {
     const response = await api.post('/auth/login', { email, password });
-    return response.data;
+    // Backend returns AuthResult with `access_token` and `user`.
+    const data = response.data;
+    return {
+      user: data.user,
+      token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_in: data.expires_in,
+    };
   },
 
   async register(userData: RegisterData): Promise<LoginResponse> {
     const response = await api.post('/auth/register', userData);
-    return response.data;
+    const data = response.data;
+    return {
+      user: data.user,
+      token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_in: data.expires_in,
+    };
   },
 
   async validateToken(token: string) {

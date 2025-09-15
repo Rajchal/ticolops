@@ -24,6 +24,7 @@ from app.api.enhanced_docs import ALL_EXAMPLES, COMMON_RESPONSES
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 from app.services.presence_manager import start_presence_manager, stop_presence_manager
 from app.services.conflict_detector import start_conflict_detector, stop_conflict_detector
+from app.core.websocket import start_connection_cleanup_task, stop_connection_cleanup_task
 
 
 @asynccontextmanager
@@ -35,6 +36,8 @@ async def lifespan(app: FastAPI):
     await init_redis()
     await initialize_websocket_pubsub()
     await start_presence_manager()
+    # Start WebSocket cleanup background task (non-blocking)
+    await start_connection_cleanup_task()
     await start_conflict_detector()
     
     yield
@@ -43,6 +46,8 @@ async def lifespan(app: FastAPI):
     await stop_conflict_detector()
     await stop_presence_manager()
     await shutdown_websocket_pubsub()
+    # Stop WebSocket cleanup background task
+    await stop_connection_cleanup_task()
 
 
 def create_app() -> FastAPI:
@@ -127,7 +132,7 @@ def create_app() -> FastAPI:
     elif settings.DEBUG:
         # During DEBUG show a lightweight placeholder response for socket.io polling
         # to reduce 404 noise when frontend clients attempt socket.io in dev.
-        from fastapi import APIRouter
+        from fastapi import APIRouter, WebSocket
         sio_router = APIRouter()
 
         @sio_router.get('/socket.io/')
@@ -136,14 +141,17 @@ def create_app() -> FastAPI:
 
         app.include_router(sio_router)
 
-        # Also add a WebSocket catcher for socket.io upgrade attempts so the
-        # server responds cleanly instead of emitting 403/connection rejected
-        # logs when socketio isn't available in DEBUG.
-        from fastapi import WebSocket
+        # Add a WebSocket catcher at '/socket.io' (no trailing slash) so socket.io
+        # upgrade attempts are handled gracefully. Some clients request '/socket.io'
+        # (without slash) for the WebSocket upgrade; handle both now by accepting
+        # and immediately closing the connection with 1000 to avoid repeated 403s.
+        @app.websocket('/socket.io')
+        async def _socketio_ws_catcher_no_slash(websocket: WebSocket):
+            await websocket.accept()
+            await websocket.close(code=1000)
 
         @app.websocket('/socket.io/')
         async def _socketio_ws_catcher(websocket: WebSocket):
-            # Accept and close immediately to inform clients gracefully.
             await websocket.accept()
             await websocket.close(code=1000)
 
@@ -154,10 +162,11 @@ def create_app() -> FastAPI:
     async def _engineio_polling_quiet_middleware(request, call_next):
         try:
             # engine.io polling requests include an `EIO` query param and
-            # transport=polling. If present and socketio isn't mounted return
-            # an empty 204 to keep logs quiet.
+            # transport=polling. Only short-circuit polling requests; don't
+            # intercept legitimate WebSocket upgrade attempts here (they are
+            # handled by the WebSocket catcher above).
             q = request.query_params
-            if ("EIO" in q and q.get("transport") in ("polling", "websocket")):
+            if ("EIO" in q) and (q.get("transport") == "polling"):
                 from fastapi.responses import Response
                 return Response(status_code=204)
         except Exception:

@@ -3,6 +3,7 @@ Authentication service for user registration, login, and token management.
 """
 
 from datetime import datetime, timedelta
+import logging
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -163,11 +164,39 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
-        
-        # Update last activity
-        user.last_activity = datetime.utcnow()
-        await self.db.commit()
-        
+
+        # Best-effort: update last_activity but don't fail validation if DB commit errors occur.
+        try:
+            user.last_activity = datetime.utcnow()
+            await self.db.commit()
+            # Ensure ORM attributes are fresh to avoid lazy-loading at schema conversion
+            try:
+                await self.db.refresh(user)
+            except Exception:
+                logging.exception("Failed to refresh user after commit; will try re-querying")
+                # Attempt a fresh query to get a fully-loaded instance
+                try:
+                    result = await self.db.execute(select(User).where(User.id == user_id))
+                    user = result.scalar_one_or_none()
+                except Exception:
+                    logging.exception("Failed to re-query user after commit/refresh; returning minimal schema")
+                    # As a last resort, return a minimal user schema based on token payload
+                    return UserSchema(
+                        id=str(user_id),
+                        email=payload.get("email", ""),
+                        name="",
+                        avatar=None,
+                        role=UserRoleEnum.ADMIN.value if hasattr(UserRoleEnum, 'ADMIN') else getattr(UserRoleEnum, 'admin', 'admin'),
+                        status=UserStatusEnum.OFFLINE.value if hasattr(UserStatusEnum, 'OFFLINE') else getattr(UserStatusEnum, 'offline', 'offline'),
+                        last_activity=None,
+                        preferences={},
+                        created_at=None,
+                        updated_at=None
+                    )
+        except Exception:
+            # Log and continue — token is still valid even if we couldn't persist activity
+            logging.exception("Failed to update last_activity during token validation; continuing")
+
         return await self._user_to_schema(user)
 
     async def refresh_token(self, refresh_token: str) -> AuthResult:

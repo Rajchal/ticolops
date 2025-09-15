@@ -3,6 +3,7 @@ FastAPI dependencies for authentication and database access.
 """
 
 from typing import Annotated, Optional
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +53,10 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
+        # Log full exception with traceback to aid debugging when requests
+        # unexpectedly fail during token validation (produces 401 responses).
+        logging.exception("Exception in get_current_user while validating token")
+        # Re-raise a clear HTTP 401 for the client while retaining server logs
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"

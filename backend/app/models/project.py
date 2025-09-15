@@ -61,6 +61,12 @@ class Project(Base):
         nullable=False,
         index=True
     )
+    # Status, settings, metadata and activity columns expected by services
+    # Use plain VARCHAR for demo compatibility (avoids requiring Postgres enum type)
+    status = Column(String(50), default=ProjectStatus.ACTIVE.value, nullable=False)
+    settings = Column(JSON, default=dict, nullable=True)
+    metadata_info = Column(JSON, default=dict, nullable=True)
+    last_activity = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -77,8 +83,11 @@ class Project(Base):
     owner = relationship("User", back_populates="owned_projects")
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
     repositories = relationship("Repository", back_populates="project", cascade="all, delete-orphan")
-    # Files belonging to this project (used by legacy code paths)
-    project_files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
+    work_items = relationship("WorkItem", back_populates="project", cascade="all, delete-orphan")
+    # Files belonging to this project (service code expects `files`)
+    files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
+    # keep legacy name also available (avoid duplicate attribute binding warnings)
+    # if other code expects `project_files`, access via the `files` attribute.
     activities = relationship("Activity", back_populates="project", cascade="all, delete-orphan")
     presence_records = relationship("UserPresence", back_populates="project", cascade="all, delete-orphan")
     activity_summaries = relationship("ActivitySummary", back_populates="project", cascade="all, delete-orphan")
@@ -113,8 +122,8 @@ class ProjectMember(Base):
         index=True
     )
     role = Column(
-        Enum(ProjectMemberRole),
-        default=ProjectMemberRole.MEMBER,
+        String(50),
+        default=ProjectMemberRole.MEMBER.value,
         nullable=False
     )
     joined_at = Column(
@@ -169,7 +178,9 @@ class ProjectFile(Base):
 
     # Relationship back to project
     # NOTE: back_populates must match the relationship name on Project
-    project = relationship("Project", back_populates="project_files", viewonly=True)
+    # Relationship back to project
+    # NOTE: back_populates must match the relationship name on Project
+    project = relationship("Project", back_populates="files", viewonly=True)
 
 
 # Expose a table-like object for legacy code that expects `project_members` from models

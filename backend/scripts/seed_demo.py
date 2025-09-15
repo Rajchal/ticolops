@@ -148,7 +148,102 @@ async def seed():
             "now": now
         })
 
-        print("Seeded demo data: demo user, project, project member, and activities")
+        # Optionally seed a demo repository and work items if tables exist
+        # Create minimal demo tables when running in DEBUG mode so the
+        # seeder can populate example repositories and work items without
+        # requiring full migrations. This is safe because it only runs in
+        # development (settings.DEBUG) and uses CREATE TABLE IF NOT EXISTS.
+        if settings.DEBUG:
+            # repositories table (minimal subset used by the frontend)
+            await conn.execute(text(
+                """
+                CREATE TABLE IF NOT EXISTS repositories (
+                    id UUID PRIMARY KEY,
+                    project_id UUID,
+                    name TEXT,
+                    url TEXT,
+                    provider TEXT,
+                    branch TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    deployment_config JSONB,
+                    created_at TIMESTAMP WITH TIME ZONE,
+                    updated_at TIMESTAMP WITH TIME ZONE
+                )
+                """
+            ))
+
+            # work_items table (minimal subset used by the frontend)
+            await conn.execute(text(
+                """
+                CREATE TABLE IF NOT EXISTS work_items (
+                    id UUID PRIMARY KEY,
+                    project_id UUID,
+                    title TEXT,
+                    description TEXT,
+                    status TEXT,
+                    assignee_id UUID,
+                    repository_url TEXT,
+                    external_id TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE,
+                    updated_at TIMESTAMP WITH TIME ZONE
+                )
+                """
+            ))
+
+        if await table_exists(conn, 'repositories'):
+            await conn.execute(text(
+                """
+                INSERT INTO repositories (id, project_id, name, url, provider, branch, is_active, deployment_config, created_at, updated_at)
+                VALUES (:id, :project_id, :name, :url, :provider, :branch, true, CAST(:config AS jsonb), :now, :now)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ), {
+                "id": str(uuid.uuid4()),
+                "project_id": project_id,
+                "name": "demo-repo",
+                "url": "https://github.com/example/demo-repo",
+                "provider": "github",
+                "branch": "main",
+                "config": '{"auto_deploy": true, "build_command":"npm run build", "output_directory":"dist", "environment_variables":{}}',
+                "now": now
+            })
+
+        if await table_exists(conn, 'work_items'):
+            await conn.execute(text(
+                """
+                INSERT INTO work_items (id, project_id, title, description, status, assignee_id, repository_url, created_at, updated_at)
+                VALUES (:id, :project_id, :title, :desc, :status, :assignee_id, :repo, :now, :now)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ), {
+                "id": str(uuid.uuid4()),
+                "project_id": project_id,
+                "title": "Implement demo feature",
+                "desc": "Implement the demo work item to show in UI",
+                "status": "todo",
+                "assignee_id": user_id,
+                "repo": "https://github.com/example/demo-repo",
+                "now": now
+            })
+
+            await conn.execute(text(
+                """
+                INSERT INTO work_items (id, project_id, title, description, status, assignee_id, repository_url, created_at, updated_at)
+                VALUES (:id, :project_id, :title, :desc, :status, :assignee_id, :repo, :now, :now)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ), {
+                "id": str(uuid.uuid4()),
+                "project_id": project_id,
+                "title": "Review pull request",
+                "desc": "Review the open PR for the feature branch",
+                "status": "in_progress",
+                "assignee_id": user_id,
+                "repo": "https://github.com/example/demo-repo",
+                "now": now
+            })
+
+        print("Seeded demo data: demo user, project, project member, activities, repos (if present), and work_items (if present)")
 
 
 def main():

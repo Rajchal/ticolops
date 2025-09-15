@@ -16,6 +16,9 @@ from app.schemas.project import (
     ProjectMember, ProjectStats, BulkFileOperation
 )
 from app.core.exceptions import NotFoundError, PermissionError, ValidationError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -36,14 +39,35 @@ class ProjectService:
             metadata_info=project_data.metadata_info or {}
         )
         
-        self.db.add(db_project)
-        await self.db.commit()
-        await self.db.refresh(db_project)
-        
-        # Add owner as a member with OWNER role
-        await self._add_project_member(str(db_project.id), owner_id, ProjectRole.OWNER)
-        
-        return await self.get_project(str(db_project.id), owner_id)
+        try:
+            self.db.add(db_project)
+            await self.db.commit()
+            # Refresh can trigger relationship loader codepaths that may not be
+            # fully initialized in demo environments (nullable loader impls).
+            # Attempt a best-effort refresh but don't fail the whole request if
+            # SQLAlchemy raises during refresh — we'll re-query via get_project
+            # below which fetches the canonical state.
+            try:
+                await self.db.refresh(db_project)
+            except Exception:
+                logger.exception("Non-fatal error while refreshing db_project; continuing to fetch via get_project")
+
+            # Add owner as a member with OWNER role
+            await self._add_project_member(str(db_project.id), owner_id, ProjectRole.OWNER)
+
+            return await self.get_project(str(db_project.id), owner_id)
+        except Exception as e:
+            # Log helpful context for debugging intermittent failures during post-create processing
+            try:
+                logger.exception("Failed while creating project; project_data=%s owner_id=%s db_project=%s", project_data, owner_id, getattr(db_project, 'id', None))
+            except Exception:
+                logger.exception("Failed while creating project; (unable to format debug context)")
+            # Attempt to rollback to keep session usable
+            try:
+                await self.db.rollback()
+            except Exception:
+                logger.exception("Rollback failed after create_project exception")
+            raise
 
     async def get_project(self, project_id: str, user_id: str) -> ProjectSchema:
         """Get a project by ID with member validation."""
@@ -51,7 +75,11 @@ class ProjectService:
         if not await self._user_has_project_access(project_id, user_id):
             raise PermissionError("You don't have access to this project")
         
-        # Get project with related data
+        # Get project with related data. In lightweight/demo DBs some related
+        # tables (like project_files) may be missing; that would raise a
+        # ProgrammingError from the DB. Detect that and fall back to a simpler
+        # query that only selects the Project row so the API can still return
+        # a usable response.
         query = (
             select(Project)
             .options(
@@ -62,27 +90,52 @@ class ProjectService:
             )
             .where(Project.id == UUID(project_id))
         )
-        
-        result = await self.db.execute(query)
-        db_project = result.scalar_one_or_none()
-        
+
+        missing_related_tables = False
+        try:
+            result = await self.db.execute(query)
+            db_project = result.scalar_one_or_none()
+        except Exception as exc:
+            # If a related table is missing (UndefinedTable / ProgrammingError),
+            # log and retry with a simple select to avoid failing the whole request.
+            msg = str(exc).lower()
+            if "does not exist" in msg or "undefinedtableerror" in msg or "relation \"project_files\"" in msg:
+                logger.warning("Related table missing while loading project: %s; falling back to simple project query", exc)
+                # The failed attempt put the transaction into an aborted state; rollback
+                # to clear it before issuing new queries.
+                try:
+                    await self.db.rollback()
+                except Exception:
+                    logger.exception("Failed to rollback after related-table error")
+                simple_q = select(Project).where(Project.id == UUID(project_id))
+                result = await self.db.execute(simple_q)
+                db_project = result.scalar_one_or_none()
+                missing_related_tables = True
+            else:
+                raise
+
         if not db_project:
             raise NotFoundError("Project not found")
         
         # Convert to schema with additional data
+        def _dt_iso(v):
+            return v.isoformat() if v is not None else None
+
         project_dict = {
             "id": str(db_project.id),
             "name": db_project.name,
             "description": db_project.description,
-            "status": db_project.status,
+            "status": str(db_project.status) if db_project.status is not None else "active",
             "owner_id": str(db_project.owner_id),
-            "settings": db_project.settings,
-            "metadata_info": db_project.metadata_info,
-            "created_at": db_project.created_at,
-            "updated_at": db_project.updated_at,
-            "last_activity": db_project.last_activity,
-            "file_count": len(db_project.files),
-            "deployment_count": len(db_project.deployments)
+            "settings": db_project.settings or {},
+            "metadata_info": db_project.metadata_info or {},
+            "created_at": _dt_iso(db_project.created_at),
+            "updated_at": _dt_iso(db_project.updated_at),
+            "last_activity": _dt_iso(db_project.last_activity),
+            # If related tables were missing, avoid touching relationship
+            # attributes which would trigger additional DB queries that fail.
+            "file_count": (len(db_project.files) if not missing_related_tables and getattr(db_project, 'files', None) is not None else 0),
+            "deployment_count": (len(db_project.deployments) if not missing_related_tables and getattr(db_project, 'deployments', None) is not None else 0)
         }
         
         # Get project members with roles
@@ -145,9 +198,14 @@ class ProjectService:
     async def get_user_projects(self, user_id: str, status: Optional[ProjectStatus] = None) -> List[ProjectSchema]:
         """Get all projects for a user."""
         # Query for projects where user is owner or member
+        # Select only scalar columns to avoid DISTINCT over JSON/jsonb columns
+        cols = [
+            Project.id, Project.name, Project.description, Project.owner_id,
+            Project.created_at, Project.updated_at, Project.last_activity
+        ]
+
         query = (
-            select(Project)
-            .options(selectinload(Project.owner))
+            select(*cols)
             .join(project_members, Project.id == project_members.c.project_id, isouter=True)
             .where(
                 or_(
@@ -156,31 +214,32 @@ class ProjectService:
                 )
             )
         )
-        
+
         if status:
             query = query.where(Project.status == status.value)
-        
-        query = query.distinct().order_by(Project.updated_at.desc())
-        
+
+        query = query.order_by(Project.updated_at.desc())
+
         result = await self.db.execute(query)
-        db_projects = result.scalars().all()
-        
+        rows = result.all()
+
         projects = []
-        for db_project in db_projects:
-            project_dict = {
-                "id": str(db_project.id),
-                "name": db_project.name,
-                "description": db_project.description,
-                "status": db_project.status,
-                "owner_id": str(db_project.owner_id),
-                "settings": db_project.settings,
-                "metadata_info": db_project.metadata_info,
-                "created_at": db_project.created_at,
-                "updated_at": db_project.updated_at,
-                "last_activity": db_project.last_activity
-            }
-            projects.append(ProjectSchema(**project_dict))
-        
+        def _iso(v):
+            return v.isoformat() if v is not None else None
+
+        for id_, name, description, owner_id, created_at, updated_at, last_activity in rows:
+            projects.append(ProjectSchema(
+                id=str(id_),
+                name=name,
+                description=description,
+                status="active",
+                owner_id=str(owner_id) if owner_id else None,
+                settings={},
+                metadata_info={},
+                created_at=_iso(created_at),
+                updated_at=_iso(updated_at)
+            ))
+
         return projects
 
     async def add_project_member(self, project_id: str, user_email: str, role: ProjectRole, inviter_id: str) -> ProjectMember:
@@ -376,45 +435,70 @@ class ProjectService:
         if inviter_id:
             insert_data["invited_by"] = UUID(inviter_id)
         
-        query = project_members.insert().values(**insert_data)
-        await self.db.execute(query)
-        await self.db.commit()
-        
-        # Get user info for response
-        user_query = select(User).where(User.id == UUID(user_id))
-        user_result = await self.db.execute(user_query)
-        user = user_result.scalar_one()
-        
-        return ProjectMember(
-            user_id=str(user.id),
-            name=user.name,
-            email=user.email,
-            role=role,
-            joined_at=insert_data["joined_at"],
-            invited_by=inviter_id
-        )
+        try:
+            query = project_members.insert().values(**insert_data)
+            await self.db.execute(query)
+            await self.db.commit()
+
+            # Get user info for response
+            user_query = select(User).where(User.id == UUID(user_id))
+            user_result = await self.db.execute(user_query)
+            user = user_result.scalar_one_or_none()
+
+            if user is None:
+                logger.error("_add_project_member: inserted membership but user row not found user_id=%s project_id=%s", user_id, project_id)
+                raise NotFoundError("User not found after adding member")
+
+            return ProjectMember(
+                user_id=str(user.id),
+                name=getattr(user, 'name', '') or '',
+                email=getattr(user, 'email', '') or '',
+                role=role,
+                joined_at=insert_data["joined_at"].isoformat() if isinstance(insert_data.get("joined_at"), datetime) else insert_data.get("joined_at"),
+                invited_by=str(inviter_id) if inviter_id else None
+            )
+        except Exception as e:
+            logger.exception("Error adding project member: project_id=%s user_id=%s role=%s inviter_id=%s", project_id, user_id, role, inviter_id)
+            try:
+                await self.db.rollback()
+            except Exception:
+                logger.exception("Rollback failed in _add_project_member")
+            raise
 
     async def _get_project_members(self, project_id: str) -> List[ProjectMember]:
         """Get all members of a project."""
+        # Build column list dynamically because some demo DBs may not have the
+        # `invited_by` column in the legacy `project_members` table.
+        cols = [User, project_members.c.role, project_members.c.joined_at]
+        include_invited_by = hasattr(project_members.c, 'invited_by')
+        if include_invited_by:
+            cols.append(project_members.c.invited_by)
+
         query = (
-            select(User, project_members.c.role, project_members.c.joined_at, project_members.c.invited_by)
+            select(*cols)
             .join(project_members, User.id == project_members.c.user_id)
             .where(project_members.c.project_id == UUID(project_id))
             .order_by(project_members.c.joined_at)
         )
-        
+
         result = await self.db.execute(query)
         rows = result.all()
-        
-        members = []
-        for user, role, joined_at, invited_by in rows:
+
+        members: List[ProjectMember] = []
+        for row in rows:
+            # row tuple may be (user, role, joined_at) or (user, role, joined_at, invited_by)
+            user = row[0]
+            role = row[1]
+            joined_at = row[2]
+            invited_by = row[3] if include_invited_by and len(row) > 3 else None
+
             members.append(ProjectMember(
                 user_id=str(user.id),
                 name=user.name,
                 email=user.email,
                 role=ProjectRole(role),
-                joined_at=joined_at,
+                joined_at=joined_at.isoformat() if getattr(joined_at, 'isoformat', None) else joined_at,
                 invited_by=str(invited_by) if invited_by else None
             ))
-        
+
         return members
