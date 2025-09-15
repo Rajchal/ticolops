@@ -6,8 +6,11 @@ import logging
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.database import get_db
+from app.core.config import settings
+from app.models.user import User as UserModel
 from app.core.websocket import connection_manager
 from app.core.deps import get_current_user_from_token, get_current_user
 from app.services.activity import ActivityService, PresenceService
@@ -23,7 +26,7 @@ logger = logging.getLogger(__name__)
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT authentication token"),
+    token: Optional[str] = Query(None, description="JWT authentication token"),
     project_id: Optional[str] = Query(None, description="Optional project ID for project-specific connection")
 ):
     """
@@ -40,10 +43,29 @@ async def websocket_endpoint(
         # Get database session
         async for db in get_db():
             # Authenticate user from token
-            current_user = await get_current_user_from_token(token, db)
-            if not current_user:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
-                return
+            # Treat literal JavaScript 'undefined' or 'null' string values as no token
+            if token and token not in ("undefined", "null"):
+                current_user = await get_current_user_from_token(token, db)
+                if not current_user:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+                    return
+            else:
+                # If no token provided and running in DEBUG, allow demo user for local demo convenience
+                if settings.DEBUG:
+                    demo = await db.execute(text("SELECT id, email FROM users WHERE email = :email"), {"email": "test@example.com"})
+                    row = demo.first()
+                    if row:
+                        # Create a minimal User-like object
+                        current_user = UserModel()
+                        setattr(current_user, 'id', row.id)
+                        setattr(current_user, 'email', row.email)
+                        setattr(current_user, 'name', 'Demo User')
+                    else:
+                        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="No token and no demo user available")
+                        return
+                else:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+                    return
             
             # Validate project access if project_id provided
             if project_id:

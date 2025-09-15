@@ -112,8 +112,11 @@ def create_app() -> FastAPI:
     # Include API router
     app.include_router(api_router, prefix="/api")
 
-    # Mount Socket.IO ASGI app at /socket.io (no trailing slash)
-    app.mount('/socket.io', socketio_app)
+    # Mount Socket.IO ASGI app at /socket.io only in non-debug (production) mode.
+    # In local/demo DEBUG mode we prefer the native /api/ws endpoint to avoid
+    # engine.io polling/upgrade mismatches that can produce 403/404 in dev.
+    if not settings.DEBUG:
+        app.mount('/socket.io', socketio_app)
     
     # Set custom OpenAPI schema
     app.openapi = lambda: custom_openapi(app)

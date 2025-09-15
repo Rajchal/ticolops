@@ -51,52 +51,30 @@ class WebSocketService {
         return;
       }
 
-      // Try Socket.IO first
-      this.socket = io(WS_URL, {
-        auth: {
-          token,
-        },
-        // Use polling-only for demo to avoid native websocket origin checks that can be blocked
-        transports: ['polling'],
-        upgrade: false,
-        path: '/socket.io',
-        timeout: 5000,
-      });
-
-      const onConnect = () => {
-        console.log('WebSocket (socket.io) connected');
-        this.reconnectAttempts = 0;
-        cleanupListeners();
-        resolve(this.socket!);
-      };
-
-      const onConnectError = (error: any) => {
-        console.warn('Socket.IO connect error, falling back to native WebSocket:', error);
-        cleanupListeners();
-        // Attempt native WebSocket fallback
+      // Use native WebSocket in development for a lightweight demo
+      if (import.meta.env.DEV) {
         try {
+          if (!token) throw new Error('No token provided for WebSocket connection');
           const wsProto = WS_URL.startsWith('https') ? 'wss' : 'ws';
-          // Connect to the backend WebSocket endpoint under /api/ws
-          const url = `${wsProto}://${new URL(WS_URL).host}/api/ws?token=${encodeURIComponent(token)}`;
+          const host = (() => {
+            try {
+              return new URL(WS_URL).host;
+            } catch {
+              return 'localhost:8000';
+            }
+          })();
+          const url = `${wsProto}://${host}/api/ws?token=${encodeURIComponent(token)}`;
           const nativeWs = new WebSocket(url);
 
-          // Minimal adapter that maps incoming messages to the same event handlers
           nativeWs.onopen = () => {
-            console.log('Native WebSocket connected (fallback)');
-            // Create a fake Socket-like wrapper with only necessary methods
             const fakeSocket: any = {
               connected: true,
-              emit: (eventName: string, data?: any) => {
-                const payload = JSON.stringify({ type: eventName, data });
-                nativeWs.send(payload);
-              },
+              emit: (eventName: string, data?: any) => nativeWs.send(JSON.stringify({ type: eventName, data })),
               on: (eventName: string, cb: any) => {
-                // map eventName to message types in incoming JSON
-                // We'll store handlers on the fakeSocket
                 (fakeSocket as any)._handlers = (fakeSocket as any)._handlers || {};
                 (fakeSocket as any)._handlers[eventName] = cb;
               },
-              off: (eventName: string, cb: any) => {
+              off: (eventName: string) => {
                 (fakeSocket as any)._handlers = (fakeSocket as any)._handlers || {};
                 delete (fakeSocket as any)._handlers[eventName];
               },
@@ -106,70 +84,52 @@ class WebSocketService {
             nativeWs.onmessage = (ev) => {
               try {
                 const msg = JSON.parse(ev.data);
-                // msg expected format: { type: 'presence:update', data: [...] }
                 const handlers = (fakeSocket as any)._handlers || {};
                 const handler = handlers[msg.type];
                 if (handler) handler(msg.data);
-                // also map some well-known events
-                if (msg.type === 'presence:update' && this.socket) {
-                  // if socket exists use the existing event emitter
-                }
               } catch (e) {
                 console.warn('Failed to parse WS message', e);
               }
             };
 
-            nativeWs.onclose = (ev) => {
-              console.log('Native WebSocket closed', ev);
+            nativeWs.onclose = () => {
+              fakeSocket.connected = false;
             };
 
             nativeWs.onerror = (err) => {
               console.error('Native WebSocket error', err);
             };
 
-            // Replace this.socket with the fakeSocket so rest of the app can use it
             (this as any).socket = fakeSocket;
             resolve((this as any).socket as Socket);
           };
 
-          nativeWs.onerror = (err) => {
-            console.error('Native WebSocket fallback failed', err);
-            reject(err);
-          };
+          nativeWs.onerror = (err) => reject(err);
         } catch (e) {
-          console.error('Fallback connection failed', e);
           reject(e);
         }
+
+        return;
+      }
+
+      // In production, use socket.io client
+      this.socket = io(WS_URL, {
+        auth: { token },
+        transports: ['polling', 'websocket'],
+        path: '/socket.io',
+      });
+
+      const onConnect = () => {
+        this.reconnectAttempts = 0;
+        resolve(this.socket!);
       };
 
-      const cleanupListeners = () => {
-        this.socket?.off('connect', onConnect);
-        this.socket?.off('connect_error', onConnectError);
+      const onError = (err: any) => {
+        reject(err);
       };
 
       this.socket.on('connect', onConnect);
-      this.socket.on('connect_error', onConnectError);
-
-      this.socket.on('disconnect', (reason) => {
-        console.log('WebSocket disconnected:', reason);
-        if (reason === 'io server disconnect') {
-          // Server disconnected, try to reconnect
-          this.handleReconnect();
-        }
-      });
-
-      this.socket.on('reconnect_attempt', (attemptNumber) => {
-        console.log(`WebSocket reconnect attempt ${attemptNumber}`);
-      });
-
-      this.socket.on('reconnect', (attemptNumber) => {
-        console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
-        this.reconnectAttempts = 0;
-      });
-
-      this.socket.on('reconnect_failed', () => {
-        console.error('WebSocket reconnection failed');
-      });
+      this.socket.on('connect_error', onError);
     });
   }
 
