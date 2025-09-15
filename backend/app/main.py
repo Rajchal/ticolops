@@ -14,6 +14,7 @@ from app.core.redis import init_redis
 from app.core.logging import setup_logging
 from app.core.openapi import custom_openapi
 from app.api import api_router
+from app.services.socketio_server import socketio_app
 from app.api.enhanced_docs import ALL_EXAMPLES, COMMON_RESPONSES
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 from app.services.presence_manager import start_presence_manager, stop_presence_manager
@@ -110,6 +111,9 @@ def create_app() -> FastAPI:
     
     # Include API router
     app.include_router(api_router, prefix="/api")
+
+    # Mount Socket.IO ASGI app at /socket.io (no trailing slash)
+    app.mount('/socket.io', socketio_app)
     
     # Set custom OpenAPI schema
     app.openapi = lambda: custom_openapi(app)
