@@ -5,6 +5,7 @@ Main FastAPI application entry point.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.middleware import SecurityHeadersMiddleware, SimpleRateLimitMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -101,6 +102,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Security headers and simple in-process rate limiting (example)
+    # For distributed/production environments prefer ingress- or gateway-level rate limiting
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SimpleRateLimitMiddleware, max_requests=120, window_seconds=60)
     
     # Include API router
     app.include_router(api_router, prefix="/api")
