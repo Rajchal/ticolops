@@ -135,6 +135,37 @@ def create_app() -> FastAPI:
             return {"message": "socket.io placeholder (DEBUG)"}
 
         app.include_router(sio_router)
+
+        # Also add a WebSocket catcher for socket.io upgrade attempts so the
+        # server responds cleanly instead of emitting 403/connection rejected
+        # logs when socketio isn't available in DEBUG.
+        from fastapi import WebSocket
+
+        @app.websocket('/socket.io/')
+        async def _socketio_ws_catcher(websocket: WebSocket):
+            # Accept and close immediately to inform clients gracefully.
+            await websocket.accept()
+            await websocket.close(code=1000)
+
+    # Lightweight ASGI middleware to quietly handle engine.io/socket.io polling
+    # requests from clients that attempt socket.io in dev. This prevents a
+    # stream of 404/403 logs without changing the main app behavior.
+    @app.middleware("http")
+    async def _engineio_polling_quiet_middleware(request, call_next):
+        try:
+            # engine.io polling requests include an `EIO` query param and
+            # transport=polling. If present and socketio isn't mounted return
+            # an empty 204 to keep logs quiet.
+            q = request.query_params
+            if ("EIO" in q and q.get("transport") in ("polling", "websocket")):
+                from fastapi.responses import Response
+                return Response(status_code=204)
+        except Exception:
+            # Be defensive: if anything goes wrong, continue to the app
+            pass
+
+        response = await call_next(request)
+        return response
     
     # Set custom OpenAPI schema
     app.openapi = lambda: custom_openapi(app)
