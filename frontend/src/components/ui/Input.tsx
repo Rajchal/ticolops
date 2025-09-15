@@ -3,11 +3,13 @@ import { cn } from '../../lib/utils';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  labelClassName?: string; // NEW
   error?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
+  labelClassName,
   error,
   className,
   id,
@@ -20,7 +22,10 @@ export const Input: React.FC<InputProps> = ({
       {label && (
         <label
           htmlFor={inputId}
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          className={cn(
+            'text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+            labelClassName // merge custom label classes
+          )}
         >
           {label}
         </label>
@@ -30,9 +35,7 @@ export const Input: React.FC<InputProps> = ({
         className={cn('input', error && 'border-destructive', className)}
         {...props}
       />
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 };

@@ -14,6 +14,12 @@ import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Deployments } from './pages/Deployments';
 import { Notifications } from './pages/Notifications';
+import '@fontsource/inter/400.css'; // regular
+import '@fontsource/inter/700.css'; // bold
+
+
+
+
 
 const queryClient = new QueryClient();
 
