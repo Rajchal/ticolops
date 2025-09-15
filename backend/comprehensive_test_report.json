@@ -1,0 +1,193 @@
+{
+  "summary": {
+    "timestamp": "2025-09-15 05:56:06",
+    "total_duration": 7.2,
+    "api_documentation": {
+      "success": false,
+      "error": "No module named 'app'"
+    },
+    "test_suites": {
+      "total": 9,
+      "successful": 0,
+      "failed": 9,
+      "success_rate": 0.0
+    },
+    "test_cases": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 0
+    },
+    "suite_details": {
+      "test_api_comprehensive": {
+        "success": false,
+        "duration": 1.1452312469482422,
+        "description": "Comprehensive API Integration Tests",
+        "test_count": 0
+      },
+      "test_integration_auth": {
+        "success": false,
+        "duration": 0.7512040138244629,
+        "description": "Authentication Integration Tests",
+        "test_count": 0
+      },
+      "test_integration_projects": {
+        "success": false,
+        "duration": 0.7603309154510498,
+        "description": "Project Management Integration Tests",
+        "test_count": 0
+      },
+      "test_integration_deployments": {
+        "success": false,
+        "duration": 0.7414755821228027,
+        "description": "Deployment Pipeline Integration Tests",
+        "test_count": 0
+      },
+      "test_database_migrations_comprehensive": {
+        "success": false,
+        "duration": 0.7617387771606445,
+        "description": "Database Migration and Rollback Tests",
+        "test_count": 0
+      },
+      "test_security_comprehensive": {
+        "success": false,
+        "duration": 0.7520051002502441,
+        "description": "Security and Authentication Tests",
+        "test_count": 0
+      },
+      "test_performance_api": {
+        "success": false,
+        "duration": 0.7338566780090332,
+        "description": "API Performance Tests",
+        "test_count": 0
+      },
+      "test_performance_database": {
+        "success": false,
+        "duration": 0.7380361557006836,
+        "description": "Database Performance Tests",
+        "test_count": 0
+      },
+      "test_api_documentation": {
+        "success": false,
+        "duration": 0.815758228302002,
+        "description": "API Documentation Validation Tests",
+        "test_count": 0
+      }
+    },
+    "failed_suites": [
+      "test_api_comprehensive",
+      "test_integration_auth",
+      "test_integration_projects",
+      "test_integration_deployments",
+      "test_database_migrations_comprehensive",
+      "test_security_comprehensive",
+      "test_performance_api",
+      "test_performance_database",
+      "test_api_documentation"
+    ],
+    "recommendations": [
+      "Fix API documentation generation issues",
+      "Address failures in test suites: test_api_comprehensive, test_integration_auth, test_integration_projects, test_integration_deployments, test_database_migrations_comprehensive, test_security_comprehensive, test_performance_api, test_performance_database, test_api_documentation",
+      "Critical: Address security test failures immediately",
+      "Investigate performance issues and optimize slow endpoints",
+      "Fix database migration issues before deployment"
+    ]
+  },
+  "detailed_results": {
+    "api_documentation": {
+      "success": false,
+      "error": "No module named 'app'"
+    },
+    "test_api_comprehensive": {
+      "description": "Comprehensive API Integration Tests",
+      "file": "tests/test_api_comprehensive.py",
+      "return_code": 4,
+      "duration": 1.1452312469482422,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_integration_auth": {
+      "description": "Authentication Integration Tests",
+      "file": "tests/test_integration_auth.py",
+      "return_code": 4,
+      "duration": 0.7512040138244629,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_integration_projects": {
+      "description": "Project Management Integration Tests",
+      "file": "tests/test_integration_projects.py",
+      "return_code": 4,
+      "duration": 0.7603309154510498,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_integration_deployments": {
+      "description": "Deployment Pipeline Integration Tests",
+      "file": "tests/test_integration_deployments.py",
+      "return_code": 4,
+      "duration": 0.7414755821228027,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_database_migrations_comprehensive": {
+      "description": "Database Migration and Rollback Tests",
+      "file": "tests/test_database_migrations_comprehensive.py",
+      "return_code": 4,
+      "duration": 0.7617387771606445,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_security_comprehensive": {
+      "description": "Security and Authentication Tests",
+      "file": "tests/test_security_comprehensive.py",
+      "return_code": 4,
+      "duration": 0.7520051002502441,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_performance_api": {
+      "description": "API Performance Tests",
+      "file": "tests/test_performance_api.py",
+      "return_code": 4,
+      "duration": 0.7338566780090332,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_performance_database": {
+      "description": "Database Performance Tests",
+      "file": "tests/test_performance_database.py",
+      "return_code": 4,
+      "duration": 0.7380361557006836,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    },
+    "test_api_documentation": {
+      "description": "API Documentation Validation Tests",
+      "file": "tests/test_api_documentation.py",
+      "return_code": 4,
+      "duration": 0.815758228302002,
+      "stdout": "",
+      "stderr": "/home/anjal/ticolops/backend/venv/lib/python3.12/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.\nPlugin: helpconfig, Hook: pytest_cmdline_parse\nConftestImportFailure: NameError: name 'relationship' is not defined (from /home/anjal/ticolops/backend/tests/conftest.py)\nFor more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning\n  config = pluginmanager.hook.pytest_cmdline_parse(\nImportError while loading conftest '/home/anjal/ticolops/backend/tests/conftest.py'.\ntests/conftest.py:10: in <module>\n    from app.main import app\napp/main.py:15: in <module>\n    from app.api import api_router\napp/api/__init__.py:4: in <module>\n    from .auth import router as auth_router\napp/api/auth.py:13: in <module>\n    from app.services.auth import AuthService\napp/services/auth.py:11: in <module>\n    from app.models.user import User, UserRoleEnum, UserStatusEnum\napp/models/__init__.py:5: in <module>\n    from .user import User, UserRoleEnum, UserStatusEnum\napp/models/user.py:28: in <module>\n    class User(Base):\napp/models/user.py:81: in User\n    activities = relationship(\"Activity\", back_populates=\"user\", cascade=\"all, delete-orphan\")\nE   NameError: name 'relationship' is not defined\n",
+      "test_data": {},
+      "success": false
+    }
+  }
+}

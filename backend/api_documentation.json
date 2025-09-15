@@ -1,0 +1,1239 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ticolops API",
+    "description": "Student collaboration platform API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/auth/auth/register": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Register",
+        "description": "Register a new user account.\n\nArgs:\n    user_data: User registration data\n    auth_service: Authentication service instance\n    \nReturns:\n    Authentication result with access token and user data\n    \nRaises:\n    HTTPException: If email already exists or validation fails",
+        "operationId": "register_api_auth_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/auth/login": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Login",
+        "description": "Authenticate user and return access token.\n\nArgs:\n    credentials: User login credentials\n    auth_service: Authentication service instance\n    \nReturns:\n    Authentication result with access token and user data\n    \nRaises:\n    HTTPException: If credentials are invalid",
+        "operationId": "login_api_auth_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/auth/me": {
+      "get": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Get Current User Info",
+        "description": "Get current authenticated user information.\n\nArgs:\n    current_user: Current authenticated user from token\n    \nReturns:\n    Current user data",
+        "operationId": "get_current_user_info_api_auth_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/auth/refresh": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Refresh Access Token",
+        "description": "Refresh access token using refresh token.\n\nArgs:\n    request: Refresh token request data\n    auth_service: Authentication service instance\n    \nReturns:\n    New authentication result with fresh access token\n    \nRaises:\n    HTTPException: If refresh token is invalid",
+        "operationId": "refresh_access_token_api_auth_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/auth/logout": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Logout",
+        "description": "Logout current user and update status to offline.\n\nArgs:\n    current_user: Current authenticated user\n    auth_service: Authentication service instance\n    \nReturns:\n    Success message",
+        "operationId": "logout_api_auth_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Logout Api Auth Auth Logout Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/auth/validate": {
+      "get": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Validate Token",
+        "description": "Validate current access token and return user data.\n\nArgs:\n    current_user: Current authenticated user from token validation\n    \nReturns:\n    Current user data if token is valid",
+        "operationId": "validate_token_api_auth_auth_validate_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/auth/password/reset-request": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Request Password Reset",
+        "description": "Request password reset for user email.\n\nArgs:\n    request: Password reset request with email\n    auth_service: Authentication service instance\n    \nReturns:\n    Success message (always returns success for security)",
+        "operationId": "request_password_reset_api_auth_auth_password_reset_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Request Password Reset Api Auth Auth Password Reset Request Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/auth/password/reset": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Reset Password",
+        "description": "Reset password using reset token.\n\nArgs:\n    request: Password reset data with token and new password\n    auth_service: Authentication service instance\n    \nReturns:\n    Success message\n    \nRaises:\n    HTTPException: If token is invalid or expired",
+        "operationId": "reset_password_api_auth_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Reset Password Api Auth Auth Password Reset Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/auth/password/change": {
+      "post": {
+        "tags": [
+          "authentication",
+          "authentication"
+        ],
+        "summary": "Change Password",
+        "description": "Change user password (requires current password).\n\nArgs:\n    request: Password change request with current and new passwords\n    current_user: Current authenticated user\n    auth_service: Authentication service instance\n    \nReturns:\n    Success message\n    \nRaises:\n    HTTPException: If current password is incorrect",
+        "operationId": "change_password_api_auth_auth_password_change_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Change Password Api Auth Auth Password Change Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/profile": {
+      "get": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Get My Profile",
+        "description": "Get current user's profile information.\n\nArgs:\n    current_user: Current authenticated user\n    \nReturns:\n    User profile data",
+        "operationId": "get_my_profile_api_users_users_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Update My Profile",
+        "description": "Update current user's profile information.\n\nArgs:\n    update_data: Profile update data\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Updated user profile",
+        "operationId": "update_my_profile_api_users_users_profile_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/{user_id}/profile": {
+      "get": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Get User Profile",
+        "description": "Get user profile by ID.\n\nArgs:\n    user_id: Target user ID\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    User profile data\n    \nRaises:\n    HTTPException: If user not found",
+        "operationId": "get_user_profile_api_users_users__user_id__profile_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/users/status": {
+      "put": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Update My Status",
+        "description": "Update current user's online status.\n\nArgs:\n    status_update: Status update data\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Updated user profile",
+        "operationId": "update_my_status_api_users_users_status_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/preferences": {
+      "put": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Update My Preferences",
+        "description": "Update current user's preferences.\n\nArgs:\n    preferences: New preferences\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Updated user profile",
+        "operationId": "update_my_preferences_api_users_users_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/activity": {
+      "get": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Get My Activity Status",
+        "description": "Get current user's activity status.\n\nArgs:\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Activity status information",
+        "operationId": "get_my_activity_status_api_users_users_activity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/{user_id}/activity": {
+      "get": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Get User Activity Status",
+        "description": "Get user activity status by ID.\n\nArgs:\n    user_id: Target user ID\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Activity status information\n    \nRaises:\n    HTTPException: If user not found",
+        "operationId": "get_user_activity_status_api_users_users__user_id__activity_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/users/activity/ping": {
+      "post": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Ping Activity",
+        "description": "Update current user's last activity timestamp (heartbeat).\n\nArgs:\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Success message",
+        "operationId": "ping_activity_api_users_users_activity_ping_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Ping Activity Api Users Users Activity Ping Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/change-password": {
+      "post": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Change Password",
+        "description": "Change current user's password.\n\nArgs:\n    password_data: Password change data\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Success message\n    \nRaises:\n    HTTPException: If current password is incorrect",
+        "operationId": "change_password_api_users_users_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Change Password Api Users Users Change Password Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/users/account": {
+      "delete": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Delete My Account",
+        "description": "Delete current user's account.\n\nArgs:\n    deletion_data: Account deletion data\n    user_service: User service instance\n    current_user: Current authenticated user\n    \nReturns:\n    Success message\n    \nRaises:\n    HTTPException: If password is incorrect",
+        "operationId": "delete_my_account_api_users_users_account_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeletion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete My Account Api Users Users Account Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountDeletion": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "AccountDeletion",
+        "description": "Schema for account deletion requests."
+      },
+      "ActivityStatus": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "last_activity": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Activity"
+          },
+          "minutes_since_activity": {
+            "type": "integer",
+            "title": "Minutes Since Activity"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "status",
+          "last_activity",
+          "minutes_since_activity",
+          "is_active"
+        ],
+        "title": "ActivityStatus",
+        "description": "Schema for user activity status."
+      },
+      "AuthResult": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "user"
+        ],
+        "title": "AuthResult",
+        "description": "Schema for authentication results."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PasswordChange": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChange",
+        "description": "Schema for password change requests."
+      },
+      "PasswordReset": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "PasswordReset",
+        "description": "Schema for password reset with token."
+      },
+      "PasswordResetRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "PasswordResetRequest",
+        "description": "Schema for password reset requests."
+      },
+      "RefreshTokenRequest": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshTokenRequest",
+        "description": "Schema for refresh token requests."
+      },
+      "User": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              }
+            ],
+            "default": "student"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserStatus"
+              }
+            ],
+            "default": "offline"
+          },
+          "last_activity": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Activity"
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/UserPreferences"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "name",
+          "id",
+          "last_activity",
+          "preferences",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "User",
+        "description": "Complete user schema for responses."
+      },
+      "UserCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              }
+            ],
+            "default": "student"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "name",
+          "password"
+        ],
+        "title": "UserCreate",
+        "description": "Schema for user creation."
+      },
+      "UserLogin": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserLogin",
+        "description": "Schema for user login."
+      },
+      "UserPreferences": {
+        "properties": {
+          "email_notifications": {
+            "type": "boolean",
+            "title": "Email Notifications",
+            "default": true
+          },
+          "push_notifications": {
+            "type": "boolean",
+            "title": "Push Notifications",
+            "default": true
+          },
+          "activity_visibility": {
+            "type": "boolean",
+            "title": "Activity Visibility",
+            "default": true
+          },
+          "conflict_alerts": {
+            "type": "boolean",
+            "title": "Conflict Alerts",
+            "default": true
+          },
+          "deployment_notifications": {
+            "type": "boolean",
+            "title": "Deployment Notifications",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "UserPreferences",
+        "description": "User preferences schema."
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "student",
+          "coordinator",
+          "admin"
+        ],
+        "title": "UserRole",
+        "description": "User role enumeration."
+      },
+      "UserStatus": {
+        "type": "string",
+        "enum": [
+          "online",
+          "away",
+          "offline"
+        ],
+        "title": "UserStatus",
+        "description": "User status enumeration."
+      },
+      "UserStatusUpdate": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "UserStatusUpdate",
+        "description": "Schema for user status updates."
+      },
+      "UserUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "UserUpdate",
+        "description": "Schema for user updates."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

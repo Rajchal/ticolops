@@ -122,7 +122,7 @@ class Activity(Base):
     )  # File path, component name, or general location
     
     # Additional metadata
-    metadata = Column(
+    meta_data = Column(
         JSONB,
         default={},
         nullable=False
@@ -252,7 +252,7 @@ class UserPresence(Base):
     )
     
     # Additional context
-    metadata = Column(
+    meta_data = Column(
         JSONB,
         default={},
         nullable=False

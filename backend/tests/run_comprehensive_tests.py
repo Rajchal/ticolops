@@ -168,6 +168,10 @@ class ComprehensiveTestRunner:
             {
                 "file": "tests/test_performance_database.py",
                 "description": "Database Performance Tests"
+            },
+            {
+                "file": "tests/test_api_documentation.py",
+                "description": "API Documentation Validation Tests"
             }
         ]
         

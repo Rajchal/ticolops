@@ -13,6 +13,7 @@ from app.core.redis import init_redis
 from app.core.logging import setup_logging
 from app.core.openapi import custom_openapi
 from app.api import api_router
+from app.api.enhanced_docs import ALL_EXAMPLES, COMMON_RESPONSES
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 from app.services.presence_manager import start_presence_manager, stop_presence_manager
 from app.services.conflict_detector import start_conflict_detector, stop_conflict_detector

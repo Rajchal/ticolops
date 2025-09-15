@@ -5,6 +5,7 @@ User database models using SQLAlchemy.
 from sqlalchemy import Column, String, DateTime, Boolean, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 import enum
 
