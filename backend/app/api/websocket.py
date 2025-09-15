@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.websocket import connection_manager
-from app.core.deps import get_current_user_from_token
+from app.core.deps import get_current_user_from_token, get_current_user
 from app.services.activity import ActivityService, PresenceService
 from app.services.project import ProjectService
 from app.services.presence_manager import presence_manager, update_user_activity

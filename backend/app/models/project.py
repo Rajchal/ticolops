@@ -2,7 +2,7 @@
 Project and project member database models using SQLAlchemy.
 """
 
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum, Boolean, Integer, Table, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -10,6 +10,30 @@ import uuid
 import enum
 
 from app.core.database import Base
+
+# Some services expect to import Deployment from app.models.project
+# Import Deployment from the deployment module and expose it below.
+try:
+    from app.models.deployment import Deployment as _DeploymentImported
+except Exception:
+    _DeploymentImported = None
+
+# Note: project_members association table will be exposed from the
+# declarative ProjectMember model below (project_members = ProjectMember.__table__)
+
+
+class ProjectStatus(enum.Enum):
+    """Project status enum (minimal for demo)."""
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    DELETED = "deleted"
+
+
+class ProjectRole(enum.Enum):
+    """Project role enum (minimal for demo)."""
+    OWNER = "owner"
+    COLLABORATOR = "collaborator"
+    MEMBER = "member"
 
 
 class ProjectMemberRole(enum.Enum):
@@ -110,6 +134,8 @@ class ProjectMember(Base):
     def __repr__(self):
         return f"<ProjectMember(id={self.id}, project_id={self.project_id}, user_id={self.user_id}, role={self.role})>"
 
+    __table_args__ = {"extend_existing": True}
+
 
 # Add relationships to User model
 from app.models.user import User
@@ -119,3 +145,36 @@ User.notifications = relationship("Notification", back_populates="user", cascade
 User.notification_preferences = relationship("NotificationPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
 User.notification_subscriptions = relationship("NotificationSubscription", back_populates="user", cascade="all, delete-orphan")
 User.notification_digests = relationship("NotificationDigest", back_populates="user", cascade="all, delete-orphan")
+
+
+class ProjectFile(Base):
+    """Minimal ProjectFile model to satisfy imports used by services during demo."""
+    __tablename__ = "project_files"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    path = Column(String(500), nullable=False)
+    content = Column(Text, nullable=True)
+    file_type = Column(String(50), nullable=False)
+    size = Column(String(20), nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    version = Column(String(50), default="1.0.0", nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    last_modified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationship back to project
+    project = relationship("Project", back_populates="repositories", viewonly=True)
+
+
+# Expose a table-like object for legacy code that expects `project_members` from models
+project_members = ProjectMember.__table__
+
+# Make enums available under the expected names
+ProjectStatus = ProjectStatus
+ProjectRole = ProjectRole
+
+# Expose Deployment if available
+Deployment = _DeploymentImported
