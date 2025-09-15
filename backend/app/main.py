@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis import init_redis
 from app.core.logging import setup_logging
+from app.core.openapi import custom_openapi
 from app.api import api_router
 from app.services.websocket_pubsub import initialize_websocket_pubsub, shutdown_websocket_pubsub
 from app.services.presence_manager import start_presence_manager, stop_presence_manager
@@ -40,9 +41,55 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="Ticolops API",
-        description="Real-time collaborative platform for student project management with automated DevOps",
+        description="""
+        ## Ticolops - Track. Collaborate. Deploy. Succeed.
+        
+        A comprehensive real-time collaborative platform designed for student project management 
+        with integrated automated DevOps workflows.
+        
+        ### Key Features
+        
+        * **Real-time Collaboration**: Track team member activities and presence in real-time
+        * **Conflict Detection**: Automatically detect and resolve collaboration conflicts
+        * **Automated DevOps**: Seamless repository integration with automated deployments
+        * **Team Management**: Comprehensive project and team member management
+        * **Activity Tracking**: Detailed activity logging and analytics
+        * **Notification System**: Multi-channel notification delivery
+        
+        ### Authentication
+        
+        This API uses JWT (JSON Web Tokens) for authentication. Include the token in the 
+        Authorization header as `Bearer <token>`.
+        
+        ### Rate Limiting
+        
+        API endpoints are rate-limited to ensure fair usage. Limits vary by endpoint and user role.
+        
+        ### WebSocket Support
+        
+        Real-time features are powered by WebSocket connections. Connect to `/ws/{project_id}` 
+        for real-time updates.
+        """,
         version="1.0.0",
-        lifespan=lifespan
+        lifespan=lifespan,
+        contact={
+            "name": "Ticolops Support",
+            "email": "support@ticolops.com",
+        },
+        license_info={
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/MIT",
+        },
+        servers=[
+            {
+                "url": "http://localhost:8000",
+                "description": "Development server"
+            },
+            {
+                "url": "https://api.ticolops.com",
+                "description": "Production server"
+            }
+        ]
     )
     
     # Configure CORS
@@ -56,6 +103,9 @@ def create_app() -> FastAPI:
     
     # Include API router
     app.include_router(api_router, prefix="/api")
+    
+    # Set custom OpenAPI schema
+    app.openapi = lambda: custom_openapi(app)
     
     return app
 
