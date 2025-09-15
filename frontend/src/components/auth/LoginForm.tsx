@@ -54,7 +54,11 @@ export const LoginForm: React.FC = () => {
             <div className="w-full max-w-md">
               {/* Headings */}
               <div className="text-center mb-6">
-                <h2 className="text-3xl text-gray-900">
+                {/* Add top-level H1 expected by E2E tests */}
+                <h1 className="text-3xl text-gray-900">
+                  Welcome to Ticolops
+                </h1>
+                <h2 className="text-2xl text-gray-800 mt-2">
                   Sign in to your account
                 </h2>
                 <p className="mt-2 text-sm text-gray-600">

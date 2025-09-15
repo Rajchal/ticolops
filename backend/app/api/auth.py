@@ -3,7 +3,9 @@ Authentication API endpoints for user registration and login.
 """
 
 from typing import Annotated
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPBearer
 
 from app.schemas.user import (
@@ -70,10 +72,27 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
+        # Log full exception traceback so failing requests can be diagnosed in logs
+        logging.exception("Error in login endpoint")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
         )
+
+@router.options("/login")
+async def options_login(response: Response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+
+
+
+
+
+
+
+
+
 
 
 @router.get("/me", response_model=User)

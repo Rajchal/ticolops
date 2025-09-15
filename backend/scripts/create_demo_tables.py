@@ -21,6 +21,7 @@ async def create_tables():
                 email VARCHAR(255) UNIQUE NOT NULL,
                 name VARCHAR(100) NOT NULL,
                 hashed_password VARCHAR(255) NOT NULL,
+                avatar TEXT,
                 role VARCHAR(50) NOT NULL,
                 status VARCHAR(50) NOT NULL,
                 last_activity TIMESTAMP,
@@ -28,6 +29,13 @@ async def create_tables():
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             );
+            """
+        ))
+
+        # Ensure avatar column exists for compatibility with ORM models
+        await conn.execute(text(
+            """
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
             """
         ))
 

@@ -16,6 +16,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
+from app.core.security import get_password_hash
 
 
 async def table_exists(conn, table_name: str) -> bool:
@@ -44,20 +45,32 @@ async def seed():
         project_id = str(uuid.uuid4())
         now = datetime.utcnow()
 
-        # Insert demo user
+        # Insert demo user (upsert) — use enum *names* so SQLAlchemy Enum maps correctly
+        # Seed a test user with a hashed password so frontend tests can login
+        hashed = get_password_hash('password123')
         await conn.execute(text(
             """
-            INSERT INTO users (id, email, name, hashed_password, role, status, last_activity, preferences, created_at, updated_at)
-            VALUES (:id, :email, :name, :pwd, :role, :status, :last_activity, :prefs, :now, :now)
-            ON CONFLICT (email) DO NOTHING
+            INSERT INTO users (id, email, name, hashed_password, avatar, role, status, last_activity, preferences, created_at, updated_at)
+            VALUES (:id, :email, :name, :pwd, :avatar, :role, :status, :last_activity, :prefs, :now, :now)
+            ON CONFLICT (email) DO UPDATE
+            SET hashed_password = EXCLUDED.hashed_password,
+                name = EXCLUDED.name,
+                avatar = COALESCE(EXCLUDED.avatar, users.avatar),
+                role = EXCLUDED.role,
+                status = EXCLUDED.status,
+                last_activity = EXCLUDED.last_activity,
+                preferences = EXCLUDED.preferences,
+                updated_at = EXCLUDED.updated_at
             """
         ), {
             "id": user_id,
-            "email": "demo@ticolops.local",
+            "email": "test@example.com",
             "name": "Demo User",
-            "pwd": "not_used_in_demo",
-            "role": "admin",
-            "status": "online",
+            "pwd": hashed,
+            "avatar": None,
+            # Use enum NAMES (uppercase) to match SQLAlchemy Enum mapping
+            "role": "ADMIN",
+            "status": "ONLINE",
             "last_activity": now,
             "prefs": "{}",
             "now": now
@@ -79,17 +92,20 @@ async def seed():
         })
 
         # Insert project member
+        # Ensure project member role uses enum NAME
         await conn.execute(text(
             """
             INSERT INTO project_members (id, project_id, user_id, role, joined_at, updated_at)
             VALUES (:id, :project_id, :user_id, :role, :now, :now)
-            ON CONFLICT (project_id, user_id) DO NOTHING
+            ON CONFLICT (project_id, user_id) DO UPDATE
+            SET role = EXCLUDED.role,
+                updated_at = EXCLUDED.updated_at
             """
         ), {
             "id": str(uuid.uuid4()),
             "project_id": project_id,
             "user_id": user_id,
-            "role": "owner",
+            "role": "OWNER",
             "now": now
         })
 

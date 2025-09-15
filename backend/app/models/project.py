@@ -77,6 +77,8 @@ class Project(Base):
     owner = relationship("User", back_populates="owned_projects")
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
     repositories = relationship("Repository", back_populates="project", cascade="all, delete-orphan")
+    # Files belonging to this project (used by legacy code paths)
+    project_files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="project", cascade="all, delete-orphan")
     presence_records = relationship("UserPresence", back_populates="project", cascade="all, delete-orphan")
     activity_summaries = relationship("ActivitySummary", back_populates="project", cascade="all, delete-orphan")
@@ -166,7 +168,8 @@ class ProjectFile(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationship back to project
-    project = relationship("Project", back_populates="repositories", viewonly=True)
+    # NOTE: back_populates must match the relationship name on Project
+    project = relationship("Project", back_populates="project_files", viewonly=True)
 
 
 # Expose a table-like object for legacy code that expects `project_members` from models

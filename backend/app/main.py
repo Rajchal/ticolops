@@ -94,10 +94,11 @@ def create_app() -> FastAPI:
         ]
     )
     
-    # Configure CORS
+    # Configure CORS (allow all origins locally to make frontend dev easier)
+    # For production set `ALLOWED_HOSTS` appropriately and avoid wildcard origins.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_HOSTS,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
